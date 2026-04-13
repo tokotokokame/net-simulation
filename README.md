@@ -1,17 +1,17 @@
-# net_simulation
+# Net.Simulation
 
-Professional Mobile Network Simulator
+プロフェッショナル仕様のモバイルネットワークシミュレータ
 
-## Getting Started
+## Androidアプリのダウンロード
 
-This project is a starting point for a Flutter application.
+1. [こちらのActionsページ](https://github.com/tokotokokame/net-simulation/actions)を開く
+2. 最新の✅ビルドをクリック
+3. ページ下部の「Artifacts」セクションから **net-simulation-v4** をダウンロード
 
-A few resources to get you started if this is your first Flutter project:
+## インストール方法
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+1. ダウンロードしたZIPを解凍
+2. `app-release.apk` をAndroidスマホに転送
+3. スマホで設定 → 提供元不明のアプリ → 許可
+4. APKをタップしてインストール
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
