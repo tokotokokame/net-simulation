@@ -1,0 +1,31 @@
+// lib/app/router.dart
+import 'package:go_router/go_router.dart';
+import '../ui/screens/topology_editor_screen.dart';
+import '../ui/screens/auth_screen.dart';
+import '../ui/screens/device_config_screen.dart';
+import '../ui/screens/statistics_screen.dart';
+
+final appRouter = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const TopologyEditorScreen(),
+    ),
+    GoRoute(
+      path: '/auth',
+      builder: (context, state) => const AuthScreen(),
+    ),
+    GoRoute(
+      path: '/config/:deviceId',
+      builder: (context, state) {
+        final deviceId = state.pathParameters['deviceId']!;
+        return DeviceConfigScreen(deviceId: deviceId);
+      },
+    ),
+    GoRoute(
+      path: '/stats',
+      builder: (context, state) => const StatisticsScreen(),
+    ),
+  ],
+);

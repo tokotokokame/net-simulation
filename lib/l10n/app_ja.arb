@@ -1,0 +1,41 @@
+{
+  "@@locale": "ja",
+  "appTitle": "Net.Simulation",
+  "startSimulation": "シミュレーション開始",
+  "stopSimulation": "シミュレーション停止",
+  "pauseSimulation": "シミュレーション一時停止",
+  "pausedSimulation": "一時停止中",
+  "demoTimerLabel": "デモ: 残り{minutes}分",
+  "@demoTimerLabel": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "upgradeToProTitle": "プロにアップグレード",
+  "upgradeToProMessage": "無料デモセッションが終了しました。プロにアップグレードするか、無料登録して続行してください。",
+  "upgradeToPro": "プロにアップグレード",
+  "registerFree": "無料登録して続行",
+  "addDevice": "デバイス追加",
+  "deviceSettings": "デバイス設定",
+  "interfaces": "インターフェース",
+  "routing": "ルーティング",
+  "security": "セキュリティ",
+  "cli": "CLI",
+  "statistics": "統計",
+  "packetSuccessRate": "パケット成功率",
+  "averageLatency": "平均レイテンシ",
+  "bandwidthUtilization": "帯域幅使用率",
+  "packetLossRate": "パケットロス率",
+  "simulateLinkFailure": "リンク障害をシミュレート",
+  "restoreLink": "リンクを復旧",
+  "simulateDeviceCrash": "デバイスクラッシュをシミュレート",
+  "restoreDevice": "デバイスを復旧",
+  "connectionMode": "接続モード",
+  "save": "保存",
+  "cancel": "キャンセル",
+  "connect": "接続",
+  "totalPackets": "合計",
+  "deliveredPackets": "到達",
+  "droppedPackets": "ドロップ",
+  "noDevices": "デバイスがありません — パレットからデバイスをドラッグしてください"
+}

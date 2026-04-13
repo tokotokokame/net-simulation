@@ -1,0 +1,41 @@
+{
+  "@@locale": "en",
+  "appTitle": "Net.Simulation",
+  "startSimulation": "Start Simulation",
+  "stopSimulation": "Stop Simulation",
+  "pauseSimulation": "Pause Simulation",
+  "pausedSimulation": "Paused",
+  "demoTimerLabel": "Demo: {minutes}m remaining",
+  "@demoTimerLabel": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "upgradeToProTitle": "Upgrade to Pro",
+  "upgradeToProMessage": "Your free demo session has ended. Upgrade to Pro or register to continue.",
+  "upgradeToPro": "Upgrade to Pro",
+  "registerFree": "Register Free",
+  "addDevice": "Add Device",
+  "deviceSettings": "Device Settings",
+  "interfaces": "Interfaces",
+  "routing": "Routing",
+  "security": "Security",
+  "cli": "CLI",
+  "statistics": "Statistics",
+  "packetSuccessRate": "Packet Success Rate",
+  "averageLatency": "Average Latency",
+  "bandwidthUtilization": "Bandwidth Utilization",
+  "packetLossRate": "Packet Loss Rate",
+  "simulateLinkFailure": "Simulate Link Failure",
+  "restoreLink": "Restore Link",
+  "simulateDeviceCrash": "Simulate Device Crash",
+  "restoreDevice": "Restore Device",
+  "connectionMode": "Connection Mode",
+  "save": "Save",
+  "cancel": "Cancel",
+  "connect": "Connect",
+  "totalPackets": "Total",
+  "deliveredPackets": "Delivered",
+  "droppedPackets": "Dropped",
+  "noDevices": "No devices — drag a device from the palette to begin"
+}
