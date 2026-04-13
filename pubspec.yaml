@@ -1,4 +1,4 @@
-name: net_simulation_v4
+name: net_simulation
 description: Professional Mobile Network Simulator
 version: 4.0.0+1
 publish_to: 'none'
