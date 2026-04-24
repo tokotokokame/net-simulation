@@ -1,6 +1,6 @@
 // test/network/arp_table_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/network/arp_table.dart';
+import 'package:net_simulation/network/arp_table.dart';
 
 ARPEntry _entry(String ip, String mac, {Duration ttl = const Duration(hours: 1)}) {
   return ARPEntry(

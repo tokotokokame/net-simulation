@@ -1,7 +1,7 @@
 // test/network/nat_table_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/network/nat_table.dart';
-import 'package:net_simulation_v4/models/packet.dart';
+import 'package:net_simulation/network/nat_table.dart';
+import 'package:net_simulation/models/packet.dart';
 
 NATEntry _entry({
   String inside = '192.168.1.10:12345',

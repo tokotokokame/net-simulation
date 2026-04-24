@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/device.dart';
 import '../../models/link.dart';
+import '../../models/network_interface.dart';
 import '../../models/topology.dart';
 
 const _uuid = Uuid();
@@ -48,6 +49,19 @@ class TopologyNotifier extends StateNotifier<Topology> {
   void rename(String name) => state = state.copyWith(name: name);
 
   void load(Topology t) => state = t;
+
+  void clear() {
+    log('clear', name: 'Topology');
+    state = Topology.empty(id: state.id, name: state.name);
+  }
+
+  void updateInterface(String deviceId, int index, NetworkInterface updated) {
+    final device = state.devices.where((d) => d.id == deviceId).firstOrNull;
+    if (device == null) return;
+    final ifaces = List.of(device.interfaces);
+    if (index < ifaces.length) { ifaces[index] = updated; } else { ifaces.add(updated); }
+    updateDevice(device.copyWith(interfaces: ifaces));
+  }
 }
 
 final topologyProvider =

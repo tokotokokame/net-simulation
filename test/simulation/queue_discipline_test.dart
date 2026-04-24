@@ -1,7 +1,7 @@
 // test/simulation/queue_discipline_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/simulation/queue_discipline.dart';
-import 'package:net_simulation_v4/models/packet.dart';
+import 'package:net_simulation/simulation/queue_discipline.dart';
+import 'package:net_simulation/models/packet.dart';
 
 Packet _p(String id, {ProtocolType proto = ProtocolType.tcp, int dport = 80}) =>
     Packet(

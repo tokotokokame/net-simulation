@@ -4,7 +4,15 @@ import 'dart:developer';
 import 'package:uuid/uuid.dart';
 import '../models/packet.dart';
 
-enum TrafficType { ping, http, dns, customUdp }
+enum TrafficType {
+  ping, http, dns, customUdp,
+  /// OSPF Hello sent to 224.0.0.5 (AllSPFRouters).
+  ospfHello,
+  /// DHCP Discover broadcast from unaddressed endpoint.
+  dhcpDiscover,
+  /// BGP Keepalive TCP ACK on port 179.
+  bgpKeepalive,
+}
 
 class TrafficConfig {
   final TrafficType type;
@@ -102,6 +110,48 @@ class TrafficGenerator {
             destinationPort: 5000,
             protocol: ProtocolType.udp,
             size: cfg.packetSize,
+          ),
+        ],
+
+      // OSPF Hello — link-local multicast, TTL=1, protocol 89.
+      TrafficType.ospfHello => [
+          Packet(
+            id: 'ospf-hello-$id',
+            sourceIp: cfg.sourceIp,
+            destinationIp: '224.0.0.5', // AllSPFRouters
+            sourcePort: 0,
+            destinationPort: 89, // OSPF IP protocol number
+            protocol: ProtocolType.ospf,
+            size: 44, // Typical OSPF Hello size (bytes)
+            ttl: 1,   // Link-local only
+          ),
+        ],
+
+      // DHCP Discover — UDP broadcast from 0.0.0.0:68 → 255.255.255.255:67.
+      TrafficType.dhcpDiscover => [
+          Packet(
+            id: 'dhcp-disc-$id',
+            sourceIp: '0.0.0.0',
+            destinationIp: '255.255.255.255',
+            sourcePort: 68,  // DHCP client
+            destinationPort: 67, // DHCP server
+            protocol: ProtocolType.udp,
+            size: 300,
+            ttl: 1,
+          ),
+        ],
+
+      // BGP Keepalive — TCP ACK on port 179, minimum 19-byte message.
+      TrafficType.bgpKeepalive => [
+          Packet(
+            id: 'bgp-ka-$id',
+            sourceIp: cfg.sourceIp,
+            destinationIp: cfg.destinationIp,
+            sourcePort: sport,
+            destinationPort: 179, // BGP
+            protocol: ProtocolType.tcp,
+            tcpFlags: const TcpFlags(ack: true),
+            size: 19, // Minimum BGP KEEPALIVE message
           ),
         ],
     };

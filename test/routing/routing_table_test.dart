@@ -1,8 +1,8 @@
 // test/routing/routing_table_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/routing/rib.dart';
-import 'package:net_simulation_v4/routing/fib.dart';
-import 'package:net_simulation_v4/network/arp_table.dart';
+import 'package:net_simulation/routing/rib.dart';
+import 'package:net_simulation/routing/fib.dart';
+import 'package:net_simulation/network/arp_table.dart';
 
 RIBEntry _route({
   required String prefix,

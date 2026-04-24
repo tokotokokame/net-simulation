@@ -1,6 +1,6 @@
 // test/auth/demo_timer_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/auth/demo_timer_service.dart';
+import 'package:net_simulation/auth/demo_timer_service.dart';
 
 void main() {
   group('DemoTimerService', () {

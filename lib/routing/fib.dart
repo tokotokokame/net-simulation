@@ -84,6 +84,12 @@ class FIB {
     }
   }
 
+  /// Directly installs a pre-computed entry (e.g., from OSPF/RIP/BGP engines).
+  void install(FIBEntry entry) {
+    _entries.add(entry);
+    log('FIB: installed (dynamic) $entry', name: 'FIB');
+  }
+
   /// Returns best FIB entry (longest prefix match).
   FIBEntry? lookup(String destinationIp) {
     final matches = _entries

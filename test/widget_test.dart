@@ -2,7 +2,7 @@
 // Smoke test for Net.Simulation v4 Phase 1.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/app/app.dart';
+import 'package:net_simulation/app/app.dart';
 
 void main() {
   testWidgets('App launches and shows topology editor stub',

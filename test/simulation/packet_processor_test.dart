@@ -1,12 +1,12 @@
 // test/simulation/packet_processor_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/simulation/packet_processor.dart';
-import 'package:net_simulation_v4/models/device.dart';
-import 'package:net_simulation_v4/models/network_interface.dart';
-import 'package:net_simulation_v4/models/packet.dart';
-import 'package:net_simulation_v4/models/topology.dart';
-import 'package:net_simulation_v4/network/arp_table.dart';
-import 'package:net_simulation_v4/routing/fib.dart';
+import 'package:net_simulation/simulation/packet_processor.dart';
+import 'package:net_simulation/models/device.dart';
+import 'package:net_simulation/models/network_interface.dart';
+import 'package:net_simulation/models/packet.dart';
+import 'package:net_simulation/models/topology.dart';
+import 'package:net_simulation/network/arp_table.dart';
+import 'package:net_simulation/routing/fib.dart';
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 

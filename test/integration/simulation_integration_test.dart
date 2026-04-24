@@ -1,13 +1,13 @@
 // test/integration/simulation_integration_test.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:net_simulation_v4/auth/demo_timer_service.dart';
-import 'package:net_simulation_v4/models/device.dart';
-import 'package:net_simulation_v4/models/link.dart';
-import 'package:net_simulation_v4/models/network_interface.dart';
-import 'package:net_simulation_v4/models/packet.dart';
-import 'package:net_simulation_v4/models/topology.dart';
-import 'package:net_simulation_v4/simulation/simulation_engine.dart';
+import 'package:net_simulation/auth/demo_timer_service.dart';
+import 'package:net_simulation/models/device.dart';
+import 'package:net_simulation/models/link.dart';
+import 'package:net_simulation/models/network_interface.dart';
+import 'package:net_simulation/models/packet.dart';
+import 'package:net_simulation/models/topology.dart';
+import 'package:net_simulation/simulation/simulation_engine.dart';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -64,7 +64,11 @@ class TopologyPainter extends CustomPainter {
   void _device(Canvas canvas, Device d) {
     final c = Offset(d.x, d.y);
     if (d.id == selectedDeviceId) {
-      canvas.drawCircle(c, kR + 5, Paint()..color = Colors.blue.withValues(alpha: 0.35));
+      canvas.drawCircle(c, kR + 6,
+          Paint()
+            ..color = Colors.blue
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3);
     }
     _shape(canvas, c, d.type);
     _icon(canvas, c, d.type);
@@ -139,4 +143,18 @@ class TopologyPainter extends CustomPainter {
   @override
   bool shouldRepaint(TopologyPainter old) =>
       old.topology != topology || old.selectedDeviceId != selectedDeviceId || old.particles != particles;
+
+  /// Returns the ID of the first device within [hitRadius]px of [tap], or null.
+  static String? deviceAt(
+    Offset tap,
+    List<Device> devices, {
+    double hitRadius = 30.0,
+  }) {
+    final r2 = hitRadius * hitRadius;
+    for (final d in devices) {
+      final dx = d.x - tap.dx, dy = d.y - tap.dy;
+      if (dx * dx + dy * dy <= r2) return d.id;
+    }
+    return null;
+  }
 }

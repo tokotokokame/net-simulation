@@ -1,6 +1,7 @@
 // lib/app/router.dart
 import 'package:go_router/go_router.dart';
 import '../ui/screens/topology_editor_screen.dart';
+import '../ui/screens/topology_list_screen.dart';
 import '../ui/screens/auth_screen.dart';
 import '../ui/screens/device_config_screen.dart';
 import '../ui/screens/statistics_screen.dart';
@@ -26,6 +27,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/stats',
       builder: (context, state) => const StatisticsScreen(),
+    ),
+    GoRoute(
+      path: '/topologies',
+      builder: (context, state) => const TopologyListScreen(),
     ),
   ],
 );
