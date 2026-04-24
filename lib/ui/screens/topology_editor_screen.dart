@@ -190,6 +190,8 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
               onPressed: () => context.push('/topologies')),
           IconButton(icon: const Icon(Icons.bar_chart), tooltip: '統計',
               onPressed: () => context.push('/stats')),
+          IconButton(icon: const Icon(Icons.security), tooltip: 'セキュリティテスト',
+              onPressed: () => context.push('/pentest')),
           IconButton(icon: const Icon(Icons.settings), tooltip: '設定',
               onPressed: () => showModalBottomSheet(context: context,
                   builder: (_) => const SettingsSheet())),

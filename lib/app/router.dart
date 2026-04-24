@@ -5,6 +5,7 @@ import '../ui/screens/topology_list_screen.dart';
 import '../ui/screens/auth_screen.dart';
 import '../ui/screens/device_config_screen.dart';
 import '../ui/screens/statistics_screen.dart';
+import '../ui/screens/pentest_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -31,6 +32,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/topologies',
       builder: (context, state) => const TopologyListScreen(),
+    ),
+    GoRoute(
+      path: '/pentest',
+      builder: (context, state) => const PentestScreen(),
     ),
   ],
 );
