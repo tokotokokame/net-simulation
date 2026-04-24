@@ -46,6 +46,13 @@ class TopologyNotifier extends StateNotifier<Topology> {
     );
   }
 
+  void updateLink(Link updated) {
+    log('updateLink: ${updated.id}', name: 'Topology');
+    state = state.copyWith(
+      links: state.links.map((l) => l.id == updated.id ? updated : l).toList(),
+    );
+  }
+
   void rename(String name) => state = state.copyWith(name: name);
 
   void load(Topology t) => state = t;

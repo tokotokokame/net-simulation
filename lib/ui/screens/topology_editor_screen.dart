@@ -90,12 +90,14 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     final a = ref.read(topologyProvider).devices
         .where((d) => d.id == selected).firstOrNull;
     if (a != null) {
-      ConnectionDialog.show(context, a, hit, (ifA, ifB, type) => _addLink(a, hit, ifA, ifB, type));
+      ConnectionDialog.show(context, a, hit,
+          (ifA, ifB, type, bw, lat, loss) => _addLink(a, hit, ifA, ifB, type, bw, lat, loss));
     }
     ref.read(selectedDeviceIdProvider.notifier).state = null;
   }
 
-  void _addLink(Device a, Device b, String ifA, String ifB, LinkType type) {
+  void _addLink(Device a, Device b, String ifA, String ifB, LinkType type,
+      int bandwidth, double latency, double packetLoss) {
     final link = Link(
       id: _uuid.v4(),
       deviceAId: a.id,
@@ -103,9 +105,24 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
       interfaceAName: ifA,
       interfaceBName: ifB,
       type: type,
+      bandwidth: bandwidth,
+      latency: latency,
+      packetLoss: packetLoss,
     );
     ref.read(topologyProvider.notifier).addLink(link);
     developer.log('Link added: ${a.name} ↔ ${b.name}', name: 'Editor');
+  }
+
+  void _editLink(Link link) {
+    final topo = ref.read(topologyProvider);
+    final a = topo.devices.where((d) => d.id == link.deviceAId).firstOrNull;
+    final b = topo.devices.where((d) => d.id == link.deviceBId).firstOrNull;
+    if (a == null || b == null) return;
+    ConnectionDialog.showForLink(context, a, b, link, (type, bw, lat, loss) {
+      ref.read(topologyProvider.notifier).updateLink(
+          link.copyWith(type: type, bandwidth: bw, latency: lat, packetLoss: loss));
+      developer.log('Link updated: ${a.name} ↔ ${b.name}', name: 'Editor');
+    });
   }
 
   Future<void> _saveTopology() async {
@@ -152,6 +169,14 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     final posMap = {for (final d in topo.devices) d.id: Offset(d.x, d.y)};
     final link = hitTestLink(topo.links, posMap, _toCanvas(local, _txCtrl.value));
     if (link != null) showLinkFailureMenu(context, ref, link, global);
+  }
+
+  // Double-tap on a link opens the edit dialog.
+  void _onDoubleTapLink(Offset local) {
+    final topo = ref.read(topologyProvider);
+    final posMap = {for (final d in topo.devices) d.id: Offset(d.x, d.y)};
+    final link = hitTestLink(topo.links, posMap, _toCanvas(local, _txCtrl.value));
+    if (link != null) _editLink(link);
   }
 
   @override
@@ -201,7 +226,11 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
         GestureDetector(
           onTapUp: (e) => _onTap(e.localPosition),
           onLongPressStart: (e) => _onLongPress(e.localPosition, e.globalPosition),
-          onDoubleTapDown: (e) { final hit = _hitTest(e.localPosition); if (hit != null) context.push('/config/${hit.id}'); },
+          onDoubleTapDown: (e) {
+            final hit = _hitTest(e.localPosition);
+            if (hit != null) { context.push('/config/${hit.id}'); return; }
+            _onDoubleTapLink(e.localPosition);
+          },
           child: InteractiveViewer(
             transformationController: _txCtrl,
             minScale: 0.3, maxScale: 4.0, constrained: false,

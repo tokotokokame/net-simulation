@@ -4,6 +4,8 @@ enum InterfaceStatus { up, down }
 
 enum VlanMode { access, trunk }
 
+enum Duplex { half, full }
+
 class NetworkInterface {
   final String name;
   final String ip;
@@ -14,6 +16,8 @@ class NetworkInterface {
   final int? vlan;
   final int bandwidth; // bps
   final VlanMode? vlanMode;
+  final int mtu;          // bytes, default 1500 (range 576–9000)
+  final Duplex duplex;    // half / full
 
   const NetworkInterface({
     required this.name,
@@ -25,6 +29,8 @@ class NetworkInterface {
     this.vlan,
     this.bandwidth = 1000000,
     this.vlanMode,
+    this.mtu = 1500,
+    this.duplex = Duplex.full,
   });
 
   NetworkInterface copyWith({
@@ -37,6 +43,8 @@ class NetworkInterface {
     int? vlan,
     int? bandwidth,
     VlanMode? vlanMode,
+    int? mtu,
+    Duplex? duplex,
   }) {
     return NetworkInterface(
       name: name ?? this.name,
@@ -48,6 +56,8 @@ class NetworkInterface {
       vlan: vlan ?? this.vlan,
       bandwidth: bandwidth ?? this.bandwidth,
       vlanMode: vlanMode ?? this.vlanMode,
+      mtu: mtu ?? this.mtu,
+      duplex: duplex ?? this.duplex,
     );
   }
 
@@ -61,6 +71,8 @@ class NetworkInterface {
         'vlan': vlan,
         'bandwidth': bandwidth,
         'vlanMode': vlanMode?.name,
+        'mtu': mtu,
+        'duplex': duplex.name,
       };
 
   factory NetworkInterface.fromJson(Map<String, dynamic> json) {
@@ -79,6 +91,11 @@ class NetworkInterface {
       vlanMode: json['vlanMode'] != null
           ? VlanMode.values.firstWhere((e) => e.name == json['vlanMode'])
           : null,
+      mtu: json['mtu'] as int? ?? 1500,
+      duplex: json['duplex'] != null
+          ? Duplex.values.firstWhere((e) => e.name == json['duplex'],
+              orElse: () => Duplex.full)
+          : Duplex.full,
     );
   }
 
