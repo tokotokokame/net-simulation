@@ -1,6 +1,7 @@
 // lib/ui/screens/statistics_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../simulation/simulation_engine.dart';
 
 class StatisticsScreen extends ConsumerWidget {
@@ -18,6 +19,8 @@ class StatisticsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('統計ダッシュボード'),
         actions: [
+          IconButton(icon: const Icon(Icons.article_outlined), tooltip: 'Syslog',
+              onPressed: () => context.push('/syslog')),
           IconButton(icon: const Icon(Icons.refresh), tooltip: 'クリア',
               onPressed: () => ref.read(simulationEngineProvider.notifier).stop()),
         ],

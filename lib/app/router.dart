@@ -6,6 +6,7 @@ import '../ui/screens/auth_screen.dart';
 import '../ui/screens/device_config_screen.dart';
 import '../ui/screens/statistics_screen.dart';
 import '../ui/screens/pentest_screen.dart';
+import '../ui/screens/syslog_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -36,6 +37,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/pentest',
       builder: (context, state) => const PentestScreen(),
+    ),
+    GoRoute(
+      path: '/syslog',
+      builder: (context, state) => const SyslogScreen(),
     ),
   ],
 );
