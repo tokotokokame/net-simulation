@@ -1,6 +1,7 @@
 // lib/ui/screens/topology_state.dart
 import 'dart:developer';
 import 'dart:math' as math;
+import 'dart:ui' show Offset;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/device.dart';
@@ -27,6 +28,27 @@ class TopologyNotifier extends StateNotifier<Topology> {
   void updateDevice(Device d) {
     state = state.copyWith(
       devices: state.devices.map((e) => e.id == d.id ? d : e).toList(),
+    );
+  }
+
+  /// Moves a device without logging — called every frame during drag.
+  void crashDevice(String deviceId) {
+    state = state.copyWith(
+      devices: state.devices.map((d) => d.id == deviceId
+          ? d.copyWith(
+              interfaces: d.interfaces
+                  .map((i) => i.copyWith(status: InterfaceStatus.down))
+                  .toList())
+          : d).toList(),
+    );
+    log('crashDevice: $deviceId', name: 'Topology');
+  }
+
+  void moveDevice(String deviceId, Offset pos) {
+    state = state.copyWith(
+      devices: state.devices.map((d) => d.id == deviceId
+          ? d.copyWith(x: pos.dx, y: pos.dy)
+          : d).toList(),
     );
   }
 

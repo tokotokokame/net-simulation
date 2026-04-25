@@ -17,7 +17,7 @@ class StatisticsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('統計ダッシュボード'),
+        title: const Text('統計'),
         actions: [
           IconButton(icon: const Icon(Icons.article_outlined), tooltip: 'Syslog',
               onPressed: () => context.push('/syslog')),
@@ -76,8 +76,10 @@ class _MetricCard extends StatelessWidget {
     child: Padding(padding: const EdgeInsets.all(12), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(icon, color: color, size: 26),
       const SizedBox(height: 4),
-      Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-      Text(label, style: const TextStyle(fontSize: 10), textAlign: TextAlign.center),
+      FittedBox(fit: BoxFit.scaleDown,
+          child: Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color))),
+      FittedBox(fit: BoxFit.scaleDown,
+          child: Text(label, style: const TextStyle(fontSize: 10), textAlign: TextAlign.center)),
     ])),
   );
 }

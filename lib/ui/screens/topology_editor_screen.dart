@@ -71,19 +71,85 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     developer.log('Dropped $type at $c', name: 'Editor');
   }
 
-  void _onPanStart(DragStartDetails e) {
+  // ── Long-press: context menu or link menu ─────────────────────────────────────
+
+  void _onLongPressStart(LongPressStartDetails e) {
     final hit = _hitTest(e.localPosition);
-    setState(() => _draggingDeviceId = hit?.id);
+    if (hit != null) {
+      _showDeviceContextMenu(hit.id);
+      return;
+    }
+    final topo = ref.read(topologyProvider);
+    final posMap = {for (final d in topo.devices) d.id: Offset(d.x, d.y)};
+    final link = hitTestLink(topo.links, posMap, _toCanvas(e.localPosition, _txCtrl.value));
+    if (link != null) { showLinkFailureMenu(context, ref, link, e.globalPosition); }
   }
+
+  void _showDeviceContextMenu(String deviceId) {
+    final device = ref.read(topologyProvider).devices
+        .where((d) => d.id == deviceId).firstOrNull;
+    if (device == null) return;
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(padding: const EdgeInsets.all(16),
+            child: Text(device.name,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('詳細設定'),
+            onTap: () { Navigator.pop(ctx); context.push('/config/${device.id}'); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.open_with),
+            title: const Text('移動'),
+            onTap: () { Navigator.pop(ctx); setState(() => _draggingDeviceId = deviceId); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.warning_amber, color: Colors.orange),
+            title: const Text('クラッシュをシミュレート',
+                style: TextStyle(color: Colors.orange)),
+            onTap: () {
+              Navigator.pop(ctx);
+              ref.read(topologyProvider.notifier).crashDevice(deviceId);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete, color: Colors.red),
+            title: const Text('削除', style: TextStyle(color: Colors.red)),
+            onTap: () { Navigator.pop(ctx); _confirmDelete(deviceId, device.name); },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  void _confirmDelete(String deviceId, String name) {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('デバイスを削除'),
+      content: Text('「$name」を削除しますか？\n接続されているリンクも削除されます。'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(ctx);
+            ref.read(topologyProvider.notifier).removeDevice(deviceId);
+          },
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('削除'),
+        ),
+      ],
+    ));
+  }
+
+  // ── Pan: canvas pan / device move (when _draggingDeviceId set) ───────────────
 
   void _onPanUpdate(DragUpdateDetails e) {
     if (_draggingDeviceId != null) {
-      final canvas = _toCanvas(e.localPosition, _txCtrl.value);
-      final dev = ref.read(topologyProvider).devices
-          .where((d) => d.id == _draggingDeviceId).firstOrNull;
-      if (dev != null) {
-        ref.read(topologyProvider.notifier).updateDevice(dev.copyWith(x: canvas.dx, y: canvas.dy));
-      }
+      final pos = _toCanvas(e.localPosition, _txCtrl.value);
+      ref.read(topologyProvider.notifier).moveDevice(_draggingDeviceId!, pos);
     } else {
       final m = _txCtrl.value.clone();
       m.storage[12] += e.delta.dx;
@@ -93,15 +159,14 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
   }
 
   void _onPanEnd(DragEndDetails e) {
-    if (_draggingDeviceId != null) {
-      final dev = ref.read(topologyProvider).devices
-          .where((d) => d.id == _draggingDeviceId).firstOrNull;
-      if (dev != null) {
-        final s = _snap(Offset(dev.x, dev.y));
-        ref.read(topologyProvider.notifier).updateDevice(dev.copyWith(x: s.dx, y: s.dy));
-      }
-      setState(() => _draggingDeviceId = null);
+    if (_draggingDeviceId == null) return;
+    final dev = ref.read(topologyProvider).devices
+        .where((d) => d.id == _draggingDeviceId).firstOrNull;
+    if (dev != null) {
+      final s = _snap(Offset(dev.x, dev.y));
+      ref.read(topologyProvider.notifier).moveDevice(_draggingDeviceId!, s);
     }
+    setState(() => _draggingDeviceId = null);
   }
 
   void _onTap(Offset local) {
@@ -203,14 +268,6 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     }
   }
 
-  void _onLongPress(Offset local, Offset global) {
-    final hit = _hitTest(local);
-    if (hit != null) { showDeviceFailureMenu(context, ref, hit, global); return; }
-    final topo = ref.read(topologyProvider);
-    final posMap = {for (final d in topo.devices) d.id: Offset(d.x, d.y)};
-    final link = hitTestLink(topo.links, posMap, _toCanvas(local, _txCtrl.value));
-    if (link != null) showLinkFailureMenu(context, ref, link, global);
-  }
 
   // Double-tap on a link opens the edit dialog.
   void _onDoubleTapLink(Offset local) {
@@ -259,8 +316,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
           IconButton(icon: const Icon(Icons.security), tooltip: 'セキュリティテスト',
               onPressed: () => context.push('/pentest')),
           IconButton(icon: const Icon(Icons.settings), tooltip: '設定',
-              onPressed: () => showModalBottomSheet(context: context,
-                  builder: (_) => const SettingsSheet())),
+              onPressed: () => SettingsSheet.show(context)),
         ],
       ),
       body: Stack(children: [
@@ -272,15 +328,16 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
           },
           builder: (_, __, ___) => GestureDetector(
             onTapUp: (e) => _onTap(e.localPosition),
-            onLongPressStart: (e) => _onLongPress(e.localPosition, e.globalPosition),
             onDoubleTapDown: (e) {
               final hit = _hitTest(e.localPosition);
               if (hit != null) { context.push('/config/${hit.id}'); return; }
               _onDoubleTapLink(e.localPosition);
             },
-            onPanStart: _onPanStart,
+            // Long press: context menu (device) or link failure (empty).
+            onLongPressStart: _onLongPressStart,
+            // Pan: move device (if selected) or scroll canvas.
             onPanUpdate: _onPanUpdate,
-            onPanEnd: _onPanEnd,
+            onPanEnd:    _onPanEnd,
             child: InteractiveViewer(
               transformationController: _txCtrl,
               panEnabled: false,

@@ -71,22 +71,29 @@ class _IfaceCardState extends State<_IfaceCard> {
     super.dispose();
   }
 
+  static final _ipRe = RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$');
+
   void _save() {
+    final ip = _ip.text.trim();
+    if (!_ipRe.hasMatch(ip)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('IPアドレスの形式が正しくありません'),
+          backgroundColor: Colors.red));
+      return;
+    }
     final mtu = int.tryParse(_mtu.text.trim()) ?? 1500;
     widget.onChanged(widget.iface.copyWith(
-      ip:        _ip.text.trim(),
+      ip:        ip,
       subnet:    int.tryParse(_subnet.text.trim()) ?? 24,
       mac:       _mac.text.trim(),
       bandwidth: _bandwidth,
       mtu:       mtu.clamp(576, 9000),
       duplex:    _duplex,
     ));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('設定を保存しました'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('✓ 設定を保存しました'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1)));
   }
 
   @override

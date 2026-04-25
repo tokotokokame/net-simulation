@@ -69,14 +69,21 @@ class _RoutingTabState extends ConsumerState<RoutingTab> {
   }
 
   void _addRoute() {
+    final prefix = _prefixCtrl.text.trim();
+    final nextHop = _hopCtrl.text.trim();
+    if (prefix.isEmpty || nextHop.isEmpty) return;
     _rib.addRoute(RIBEntry(
-      prefix: _prefixCtrl.text.trim(),
+      prefix: prefix,
       mask: int.tryParse(_maskCtrl.text.trim()) ?? 0,
-      nextHop: _hopCtrl.text.trim(),
+      nextHop: nextHop,
       metric: 1,
       protocol: RoutingProtocol.static,
     ));
     setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('✓ スタティックルートを追加しました'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1)));
   }
 
   @override

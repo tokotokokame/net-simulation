@@ -51,11 +51,15 @@ class SimulationAnimator with ChangeNotifier {
   // ── Sync with engine packets ───────────────────────────────────────────────
 
   void updateParticles(List<Packet> packets, Topology topology) {
-    final deviceMap = {for (final d in topology.devices) d.id: d};
+    // Build IP-to-device map for position lookup.
+    final ipMap = <String, dynamic>{};
+    for (final d in topology.devices) {
+      for (final iface in d.interfaces) { ipMap[iface.ip] = d; }
+    }
+    final devices = topology.devices;
 
     for (final pkt in packets) {
       if (_knownIds.contains(pkt.id)) {
-        // Update status for already-tracked particles
         final idx = _particles.indexWhere((p) => p.packetId == pkt.id);
         if (idx >= 0 && !_particles[idx].isTerminal) {
           _particles[idx].status = pkt.status;
@@ -63,9 +67,9 @@ class SimulationAnimator with ChangeNotifier {
         continue;
       }
 
-      // Determine source + destination positions from topology
-      final src = deviceMap[pkt.sourceIp] ?? deviceMap.values.firstOrNull;
-      final dst = deviceMap[pkt.destinationIp] ?? deviceMap.values.lastOrNull;
+      // Match source/destination by IP, fallback to first/last device.
+      final src = (ipMap[pkt.sourceIp] as dynamic) ?? (devices.isNotEmpty ? devices.first : null);
+      final dst = (ipMap[pkt.destinationIp] as dynamic) ?? (devices.length > 1 ? devices.last : null);
       if (src == null || dst == null) continue;
 
       // Cap particle count

@@ -6,18 +6,67 @@ import '../../visualization/device_style.dart';
 
 // ── Drag feedback color ───────────────────────────────────────────────────────
 
-Color _getDeviceColor(DeviceType type) => switch (type) {
-      DeviceType.router                                       => Colors.blue[700]!,
-      DeviceType.l3Switch || DeviceType.switch_              => Colors.green[700]!,
-      DeviceType.firewall || DeviceType.ids || DeviceType.ips => Colors.red[700]!,
-      DeviceType.pc || DeviceType.laptop ||
-      DeviceType.server || DeviceType.iotDevice              => Colors.blueGrey[600]!,
-      DeviceType.internetCloud || DeviceType.mplsCloud ||
-      DeviceType.lteNetwork || DeviceType.fiveGNetwork       => Colors.indigo[600]!,
-      DeviceType.vpnGateway                                  => Colors.purple[600]!,
-      DeviceType.sdnController || DeviceType.openFlowSwitch  => Colors.teal[600]!,
-      _                                                      => Colors.grey[600]!,
-    };
+Color _getDeviceColor(DeviceType type) {
+  switch (type) {
+    // エンドポイント（青グレー系）
+    case DeviceType.pc:
+    case DeviceType.laptop:
+    case DeviceType.server:
+    case DeviceType.iotDevice:
+      return Colors.blueGrey[600]!;
+
+    // インフラ L3
+    case DeviceType.router:
+      return Colors.blue[700]!;
+    case DeviceType.l3Switch:
+      return Colors.green[700]!;
+    case DeviceType.switch_:
+      return Colors.green[500]!;
+
+    // インフラ L2（エメラルド/シアン系）
+    case DeviceType.hub:
+      return const Color(0xFF00897B); // teal[600]
+    case DeviceType.bridge:
+      return const Color(0xFF00ACC1); // cyan[600]
+    case DeviceType.wirelessAP:
+      return const Color(0xFF26A69A); // teal[400]
+    case DeviceType.natGateway:
+      return const Color(0xFF00838F); // cyan[800]
+
+    // セキュリティ（赤系）
+    case DeviceType.firewall:
+      return Colors.red[700]!;
+    case DeviceType.ids:
+      return Colors.red[500]!;
+    case DeviceType.ips:
+      return Colors.deepOrange[600]!;
+
+    // WAN/キャリア（紫系）
+    case DeviceType.internetCloud:
+      return Colors.purple[600]!;
+    case DeviceType.mplsCloud:
+      return Colors.purple[400]!;
+    case DeviceType.lteNetwork:
+      return Colors.deepPurple[500]!;
+    case DeviceType.fiveGNetwork:
+      return Colors.indigo[600]!;
+    case DeviceType.satelliteNetwork:
+      return Colors.indigo[400]!;
+
+    // VPN
+    case DeviceType.vpnGateway:
+      return Colors.pink[700]!;
+
+    // SDN（ティール系）
+    case DeviceType.sdnController:
+      return const Color(0xFF00796B);
+    case DeviceType.openFlowSwitch:
+      return const Color(0xFF004D40);
+
+    default:
+      return Colors.grey[600]!;
+  }
+}
 
 // ── Category data ─────────────────────────────────────────────────────────────
 

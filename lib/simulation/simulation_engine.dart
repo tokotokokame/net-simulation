@@ -111,8 +111,28 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
       log('SimulationEngine paused by demo timer', name: 'Engine');
       pause();
     });
-    for (final cfg in configs ?? []) {
+    final effectiveConfigs = configs ?? [];
+    for (final cfg in effectiveConfigs) {
       _trafficSubs.add(_trafficGen.generatePackets(cfg).listen(injectPacket));
+    }
+
+    // Auto-generate default ping when no configs provided.
+    if (effectiveConfigs.isEmpty && topology.devices.length >= 2) {
+      final src = topology.devices.first;
+      final dst = topology.devices.last;
+      final srcIp = src.interfaces.isNotEmpty ? src.interfaces.first.ip : '10.0.0.1';
+      final dstIp = dst.interfaces.isNotEmpty ? dst.interfaces.first.ip : '10.0.0.2';
+      if (srcIp != '0.0.0.0' && dstIp != '0.0.0.0') {
+        _trafficSubs.add(_trafficGen.generatePackets(TrafficConfig(
+          type: TrafficType.ping,
+          sourceDeviceId: src.id,
+          sourceIp: srcIp,
+          destinationIp: dstIp,
+          packetRate: 2,
+          duration: const Duration(minutes: 10),
+        )).listen(injectPacket));
+        log('Auto ping: ${src.name}($srcIp) → ${dst.name}($dstIp)', name: 'Engine');
+      }
     }
 
     // 8. Ticker — simulation loop.
