@@ -1,9 +1,13 @@
 // lib/simulation/simulation_engine.dart
 import 'dart:async';
 import 'dart:developer';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/demo_timer_service.dart';
+import '../models/attack_packet.dart';
+import '../models/device.dart';
 import '../models/link.dart';
+import '../models/network_interface.dart';
 import '../models/packet.dart';
 import '../models/topology.dart';
 import 'bgp_engine.dart';
@@ -18,6 +22,20 @@ import 'traffic_generator.dart';
 import 'vlan_engine.dart';
 
 enum SimulationState { idle, running, paused, stopped }
+
+/// Result returned by [SimulationEngine.validateAndPrepare].
+class SimulationStartResult {
+  final List<String> errors;
+  final List<String> warnings;
+  /// Topology with auto-assigned IPs (same as input when errors are present).
+  final Topology prepared;
+  const SimulationStartResult({
+    required this.errors,
+    required this.warnings,
+    required this.prepared,
+  });
+  bool get hasErrors => errors.isNotEmpty;
+}
 
 class SimulationStats {
   final int totalPackets, deliveredPackets, droppedPackets;
@@ -39,17 +57,24 @@ class SimulationEngineState {
   final SimulationState simState;
   final List<Packet> activePackets;
   final SimulationStats stats;
+  final List<AttackResult> attackResults;
   const SimulationEngineState({
     this.simState = SimulationState.idle,
     this.activePackets = const [],
     this.stats = const SimulationStats(),
+    this.attackResults = const [],
   });
-  SimulationEngineState copyWith({SimulationState? simState, List<Packet>? activePackets, SimulationStats? stats}) =>
-      SimulationEngineState(
-        simState: simState ?? this.simState,
-        activePackets: activePackets ?? this.activePackets,
-        stats: stats ?? this.stats,
-      );
+  SimulationEngineState copyWith({
+    SimulationState? simState,
+    List<Packet>? activePackets,
+    SimulationStats? stats,
+    List<AttackResult>? attackResults,
+  }) => SimulationEngineState(
+    simState: simState ?? this.simState,
+    activePackets: activePackets ?? this.activePackets,
+    stats: stats ?? this.stats,
+    attackResults: attackResults ?? this.attackResults,
+  );
 }
 
 class SimulationEngine extends StateNotifier<SimulationEngineState> {
@@ -72,6 +97,73 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
   }
 
   SimulationState get simState => state.simState;
+
+  /// Records an [AttackResult] from the pentest screen (capped at 500).
+  void recordAttackResult(AttackResult result) {
+    final updated = [...state.attackResults, result];
+    if (updated.length > 500) updated.removeRange(0, updated.length - 500);
+    state = state.copyWith(attackResults: updated);
+  }
+
+  /// Validates [topology] and auto-assigns IPs where missing.
+  /// Always safe to call; does NOT start the simulation.
+  SimulationStartResult validateAndPrepare(Topology topology) {
+    final errors   = <String>[];
+    final warnings = <String>[];
+
+    // 1. Must have at least one link.
+    if (topology.links.isEmpty) {
+      errors.add('リンクが存在しません。デバイスを接続してからシミュレーションを開始してください。');
+    }
+
+    // 2. Auto-assign 0.0.0.0 IPs.
+    int ipSuffix = 10;
+    final preparedDevices = <Device>[];
+    for (final device in topology.devices) {
+      if (device.interfaces.isEmpty) {
+        final ip = '192.168.1.$ipSuffix'; ipSuffix++;
+        warnings.add('${device.name}: eth0 を自動追加 → $ip');
+        preparedDevices.add(device.copyWith(interfaces: [
+          NetworkInterface(name: 'eth0', ip: ip, subnet: 24, mac: _genMac()),
+        ]));
+      } else {
+        final ifaces = <NetworkInterface>[];
+        for (final iface in device.interfaces) {
+          if (iface.ip == '0.0.0.0' || iface.ip.isEmpty) {
+            final ip = '192.168.1.$ipSuffix'; ipSuffix++;
+            warnings.add('${device.name}/${iface.name}: IP自動補完 → $ip');
+            ifaces.add(iface.copyWith(ip: ip));
+          } else {
+            ifaces.add(iface);
+          }
+        }
+        preparedDevices.add(device.copyWith(interfaces: ifaces));
+      }
+    }
+
+    // 3. Duplicate IP check.
+    final seen = <String, String>{};
+    for (final d in preparedDevices) {
+      for (final i in d.interfaces) {
+        if (i.ip == '0.0.0.0') continue;
+        if (seen.containsKey(i.ip)) {
+          errors.add('IPアドレス重複: ${i.ip}  (${seen[i.ip]} と ${d.name})');
+        } else {
+          seen[i.ip] = d.name;
+        }
+      }
+    }
+
+    final prepared = errors.isEmpty
+        ? topology.copyWith(devices: preparedDevices)
+        : topology;
+    return SimulationStartResult(errors: errors, warnings: warnings, prepared: prepared);
+  }
+
+  static String _genMac() {
+    final r = math.Random();
+    return List.generate(6, (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
+  }
 
   void start(Topology topology, [List<TrafficConfig>? configs]) {
     if (simState == SimulationState.running) return;

@@ -2,6 +2,8 @@
 import 'dart:async';
 import 'dart:developer';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/attack_packet.dart';
+import '../simulation/attack_event.dart';
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
@@ -80,6 +82,35 @@ class SyslogService extends StateNotifier<List<SyslogEntry>> {
 
   void connectionEstablished(String facility, String detail) =>
       addEntry(SyslogSeverity.info, facility, 'Connection established: $detail');
+
+  /// Logs an attack cycle result with appropriate severity.
+  void logAttackResult(
+    AttackResult result, {
+    required String attackerName,
+    required String targetName,
+  }) {
+    final outcome = outcomeOf(result);
+    final typeName = result.attackType.label;
+    final (severity, message) = switch (outcome) {
+      AttackOutcome.blocked =>
+        (SyslogSeverity.critical,
+         '[IPS BLOCK] $typeName 遮断: $attackerName → $targetName'
+         ' (blocked=${result.packetsBlocked})'),
+      AttackOutcome.detected =>
+        (SyslogSeverity.alert,
+         '[IDS ALERT] $typeName 検知: $attackerName → $targetName'
+         ' (gen=${result.packetsGenerated})'),
+      AttackOutcome.rateLimited =>
+        (SyslogSeverity.warning,
+         '[IPS RATE] $typeName レート制限: $attackerName → $targetName'
+         ' (blocked=${result.packetsBlocked})'),
+      AttackOutcome.sent =>
+        (SyslogSeverity.notice,
+         '[ATTACK] $typeName: $attackerName → $targetName'
+         ' (${result.packetsGenerated} pkts)'),
+    };
+    addEntry(severity, attackerName, message);
+  }
 
   // ── Query ─────────────────────────────────────────────────────────────────
 

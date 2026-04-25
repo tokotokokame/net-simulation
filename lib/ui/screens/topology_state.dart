@@ -100,6 +100,14 @@ class TopologyNotifier extends StateNotifier<Topology> {
         name: 'Topology');
   }
 
+  void removeInterface(String deviceId, int index) {
+    final device = state.devices.where((d) => d.id == deviceId).firstOrNull;
+    if (device == null || index >= device.interfaces.length) return;
+    final ifaces = List.of(device.interfaces)..removeAt(index);
+    updateDevice(device.copyWith(interfaces: ifaces));
+    log('removeInterface: $deviceId[$index]', name: 'Topology');
+  }
+
   static String _defaultName(DeviceType type, int count) {
     const names = {
       DeviceType.router:            'Router',

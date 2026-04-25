@@ -16,7 +16,8 @@ import '../../visualization/simulation_animator.dart';
 import '../../visualization/topology_painter.dart';
 import '../widgets/connection_dialog.dart'; import '../widgets/device_palette.dart';
 import '../widgets/failure_menu.dart'; import '../widgets/paywall_dialog.dart';
-import '../widgets/settings_sheet.dart'; import 'topology_state.dart';
+import '../widgets/settings_sheet.dart'; import 'device_config_screen.dart';
+import 'topology_state.dart';
 import '../../storage/topology_storage.dart';
 
 const _uuid = Uuid();
@@ -34,14 +35,18 @@ class TopologyEditorScreen extends ConsumerStatefulWidget {
 }
 
 class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _txCtrl = TransformationController();
   late final SimulationAnimator _animator;
   List<PacketParticle> _particles = [];
   String? _draggingDeviceId;
 
   @override
-  void initState() { super.initState(); _animator = SimulationAnimator(this)..addListener(_onAnimFrame); }
+  void initState() {
+    super.initState();
+    _animator = SimulationAnimator(this)..addListener(_onAnimFrame);
+  }
+
   void _onAnimFrame() => setState(() => _particles = List.of(_animator.activeParticles));
 
   @override
@@ -69,6 +74,54 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     ref.read(topologyProvider.notifier).addDevice(Device(id: _uuid.v4(), type: type, name: type.name,
         x: c.dx, y: c.dy, interfaces: const [NetworkInterface(name: 'eth0', ip: '0.0.0.0', subnet: 24, mac: '00:00:00:00:00:00')]));
     developer.log('Dropped $type at $c', name: 'Editor');
+  }
+
+  // ── Simulation start with validation ─────────────────────────────────────
+
+  Future<void> _startSimulation() async {
+    final topo = ref.read(topologyProvider);
+    final engine = ref.read(simulationEngineProvider.notifier);
+    final result = engine.validateAndPrepare(topo);
+
+    if (result.hasErrors) {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Row(children: [
+            Icon(Icons.error_outline, color: Colors.red),
+            SizedBox(width: 8),
+            Text('開始エラー'),
+          ]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: result.errors.map((e) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text('• $e', style: const TextStyle(color: Colors.red)),
+            )).toList(),
+          ),
+          actions: [TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+
+    // Apply auto-assigned IPs to topology state.
+    if (result.warnings.isNotEmpty) {
+      ref.read(topologyProvider.notifier).load(result.prepared);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('自動補完: ${result.warnings.join(' / ')}'),
+          backgroundColor: Colors.amber[800],
+          duration: const Duration(seconds: 4),
+        ));
+      }
+    }
+
+    engine.start(result.prepared);
+    _animator.start();
   }
 
   // ── Long-press: context menu or link menu ─────────────────────────────────────
@@ -144,7 +197,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     ));
   }
 
-  // ── Pan: canvas pan / device move (when _draggingDeviceId set) ───────────────
+  // ── Pan ───────────────────────────────────────────────────────────────────
 
   void _onPanUpdate(DragUpdateDetails e) {
     if (_draggingDeviceId != null) {
@@ -172,27 +225,19 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
   void _onTap(Offset local) {
     final hit = _hitTest(local);
     final selected = ref.read(selectedDeviceIdProvider);
-
-    // Empty area → deselect.
     if (hit == null) {
       ref.read(selectedDeviceIdProvider.notifier).state = null;
       return;
     }
-
-    // Tap same device → deselect.
     if (selected == hit.id) {
       ref.read(selectedDeviceIdProvider.notifier).state = null;
       return;
     }
-
-    // No device selected → select (highlight).
     if (selected == null) {
       ref.read(selectedDeviceIdProvider.notifier).state = hit.id;
       developer.log('Selected ${hit.name}', name: 'Editor');
       return;
     }
-
-    // Different device already selected → show ConnectionDialog.
     final a = ref.read(topologyProvider).devices
         .where((d) => d.id == selected).firstOrNull;
     if (a != null) {
@@ -206,14 +251,9 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
       int bandwidth, double latency, double packetLoss) {
     final link = Link(
       id: _uuid.v4(),
-      deviceAId: a.id,
-      deviceBId: b.id,
-      interfaceAName: ifA,
-      interfaceBName: ifB,
-      type: type,
-      bandwidth: bandwidth,
-      latency: latency,
-      packetLoss: packetLoss,
+      deviceAId: a.id, deviceBId: b.id,
+      interfaceAName: ifA, interfaceBName: ifB,
+      type: type, bandwidth: bandwidth, latency: latency, packetLoss: packetLoss,
     );
     ref.read(topologyProvider.notifier).addLink(link);
     developer.log('Link added: ${a.name} ↔ ${b.name}', name: 'Editor');
@@ -227,7 +267,6 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     ConnectionDialog.showForLink(context, a, b, link, (type, bw, lat, loss) {
       ref.read(topologyProvider.notifier).updateLink(
           link.copyWith(type: type, bandwidth: bw, latency: lat, packetLoss: loss));
-      developer.log('Link updated: ${a.name} ↔ ${b.name}', name: 'Editor');
     });
   }
 
@@ -245,37 +284,77 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
                 labelText: '名前', border: OutlineInputBorder()),
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('キャンセル')),
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                child: const Text('保存')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('保存')),
           ],
         ),
       );
       if (name == null || name.isEmpty || !mounted) return;
       ref.read(topologyProvider.notifier).rename(name);
-      await ref
-          .read(topologyStorageProvider)
-          .saveTopology(ref.read(topologyProvider));
+      await ref.read(topologyStorageProvider).saveTopology(ref.read(topologyProvider));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('"$name" を保存しました')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"$name" を保存しました')));
       }
     } finally {
       ctrl.dispose();
     }
   }
 
-
-  // Double-tap on a link opens the edit dialog.
   void _onDoubleTapLink(Offset local) {
     final topo = ref.read(topologyProvider);
     final posMap = {for (final d in topo.devices) d.id: Offset(d.x, d.y)};
     final link = hitTestLink(topo.links, posMap, _toCanvas(local, _txCtrl.value));
     if (link != null) _editLink(link);
   }
+
+  // ── Zoom controls ─────────────────────────────────────────────────────────
+
+  void _zoom(double factor) {
+    final m = _txCtrl.value.clone();
+    final s = m.storage[0];
+    final ns = (s * factor).clamp(0.3, 4.0);
+    final sf = ns / s;
+
+    final size = MediaQuery.of(context).size;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final newTx = cx * (1 - sf) + sf * m.storage[12];
+    final newTy = cy * (1 - sf) + sf * m.storage[13];
+
+    final target = Matrix4.identity();
+    target.storage[0]  = ns;
+    target.storage[5]  = ns;
+    target.storage[12] = newTx;
+    target.storage[13] = newTy;
+    _animateTransform(target);
+  }
+
+  void _animateTransform(Matrix4 target) {
+    final begin = _txCtrl.value.clone();
+    final ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    final anim = Matrix4Tween(begin: begin, end: target)
+        .animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOut));
+    anim.addListener(() => _txCtrl.value = anim.value);
+    ctrl.forward().then((_) => ctrl.dispose());
+  }
+
+  Widget _buildZoomControls(double bottomPad) {
+    final bottom = 130 + bottomPad + 56 + 16;
+    return Positioned(
+      right: 16,
+      bottom: bottom,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _ZoomButton(icon: Icons.add, tooltip: 'ズームイン',  onTap: () => _zoom(1.25)),
+        const SizedBox(height: 4),
+        _ZoomButton(icon: Icons.remove, tooltip: 'ズームアウト', onTap: () => _zoom(0.8)),
+        const SizedBox(height: 4),
+        _ZoomButton(icon: Icons.fit_screen, tooltip: 'リセット',
+            onTap: () => _animateTransform(Matrix4.identity())),
+      ]),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +364,14 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     final isRunning = engine.simState == SimulationState.running;
     final authState = ref.watch(userAuthProvider);
     final timerSecs = ref.watch(demoRemainingProvider).valueOrNull;
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
+    // Sync animator with engine packets every tick.
+    ref.listen(simulationEngineProvider, (_, next) {
+      if (next.simState == SimulationState.running && next.activePackets.isNotEmpty) {
+        _animator.updateParticles(next.activePackets, ref.read(topologyProvider));
+      }
+    });
 
     ref.listen(demoRemainingProvider, (_, next) {
       if (next.valueOrNull == 0) {
@@ -303,28 +390,17 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
               child: Text('${timerSecs ~/ 60}m ${timerSecs % 60}s',
                   style: TextStyle(fontSize: 12,
                       color: timerSecs < 300 ? Colors.red : Colors.white70)))),
-          IconButton(
-              icon: const Icon(Icons.save_outlined),
-              tooltip: '保存',
-              onPressed: _saveTopology),
-          IconButton(
-              icon: const Icon(Icons.folder_open_outlined),
-              tooltip: '読み込み',
-              onPressed: () => context.push('/topologies')),
-          IconButton(icon: const Icon(Icons.bar_chart), tooltip: '統計',
-              onPressed: () => context.push('/stats')),
-          IconButton(icon: const Icon(Icons.security), tooltip: 'セキュリティテスト',
-              onPressed: () => context.push('/pentest')),
-          IconButton(icon: const Icon(Icons.settings), tooltip: '設定',
-              onPressed: () => SettingsSheet.show(context)),
+          IconButton(icon: const Icon(Icons.save_outlined),       tooltip: '保存',          onPressed: _saveTopology),
+          IconButton(icon: const Icon(Icons.folder_open_outlined), tooltip: '読み込み',      onPressed: () => context.push('/topologies')),
+          IconButton(icon: const Icon(Icons.bar_chart),            tooltip: '統計',          onPressed: () => context.push('/stats')),
+          IconButton(icon: const Icon(Icons.security),             tooltip: 'セキュリティテスト', onPressed: () => context.push('/pentest')),
+          IconButton(icon: const Icon(Icons.settings),             tooltip: '設定',          onPressed: () => SettingsSheet.show(context)),
         ],
       ),
       body: Stack(children: [
         DragTarget<DeviceType>(
           onAcceptWithDetails: (details) {
             final box = context.findRenderObject()! as RenderBox;
-            // details.offset is the global position corrected by feedbackOffset.
-            // Convert to body-local, then apply inverse transform matrix.
             final local = box.globalToLocal(details.offset);
             final inv = Matrix4.inverted(_txCtrl.value);
             final s = inv.storage;
@@ -338,12 +414,20 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
             onTapUp: (e) => _onTap(e.localPosition),
             onDoubleTapDown: (e) {
               final hit = _hitTest(e.localPosition);
-              if (hit != null) { context.push('/config/${hit.id}'); return; }
+              if (hit != null) {
+                if (isCloudDevice(hit.type)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('このデバイスは設定できません（クラウド/キャリアノード）'),
+                    duration: Duration(seconds: 2),
+                  ));
+                  return;
+                }
+                context.push('/config/${hit.id}');
+                return;
+              }
               _onDoubleTapLink(e.localPosition);
             },
-            // Long press: context menu (device) or link failure (empty).
             onLongPressStart: _onLongPressStart,
-            // Pan: move device (if selected) or scroll canvas.
             onPanUpdate: _onPanUpdate,
             onPanEnd:    _onPanEnd,
             child: InteractiveViewer(
@@ -351,30 +435,70 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
               panEnabled: false,
               minScale: 0.3, maxScale: 4.0, constrained: false,
               child: SizedBox(width: 3000, height: 3000,
-                  child: CustomPaint(painter: TopologyPainter(topology: topo, selectedDeviceId: selected, particles: _particles))),
+                  child: CustomPaint(
+                      painter: TopologyPainter(
+                          topology: topo,
+                          selectedDeviceId: selected,
+                          particles: _particles))),
             ),
           ),
         ),
+        // Zoom buttons
+        _buildZoomControls(bottomPad),
       ]),
       bottomSheet: SafeArea(
-        minimum: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        minimum: EdgeInsets.only(bottom: bottomPad),
         child: SizedBox(
           height: 130,
           child: DevicePalette(onDeviceSelected: _addAtCenter),
         ),
       ),
       floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: 130 + MediaQuery.of(context).padding.bottom + 8),
+        padding: EdgeInsets.only(bottom: 130 + bottomPad + 8),
         child: FloatingActionButton(
           backgroundColor: isRunning ? Colors.red[700] : Colors.blue[700],
           onPressed: () {
-            if (isRunning) { ref.read(simulationEngineProvider.notifier).pause(); _animator.stop(); }
-            else { ref.read(simulationEngineProvider.notifier).start(topo); _animator.start(); }
+            if (isRunning) {
+              ref.read(simulationEngineProvider.notifier).pause();
+              _animator.stop();
+            } else {
+              _startSimulation();
+            }
           },
-          child: Icon(isRunning ? Icons.stop : Icons.play_arrow, color: Colors.white, size: 30),
+          child: Icon(isRunning ? Icons.stop : Icons.play_arrow,
+              color: Colors.white, size: 30),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+}
+
+// ── Zoom button widget ────────────────────────────────────────────────────────
+
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _ZoomButton({required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: const Color(0xFF1E2A3A),
+        borderRadius: BorderRadius.circular(8),
+        elevation: 3,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 40, height: 40,
+            child: Icon(icon, color: Colors.white70, size: 22),
+          ),
+        ),
+      ),
     );
   }
 }

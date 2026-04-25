@@ -1,7 +1,10 @@
 // lib/ui/screens/statistics_screen.dart
+import 'dart:math' show max;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../models/attack_packet.dart';
+import '../../simulation/attack_event.dart';
 import '../../simulation/simulation_engine.dart';
 
 class StatisticsScreen extends ConsumerWidget {
@@ -47,6 +50,48 @@ class StatisticsScreen extends ConsumerWidget {
           _SummaryRow('合計', total),
           _SummaryRow('到達', stats.deliveredPackets, color: Colors.green),
           _SummaryRow('ドロップ', stats.droppedPackets, color: Colors.red),
+          // ── Attack stats section ────────────────────────────────────
+          if (engine.attackResults.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.security, size: 18, color: Colors.purple),
+              const SizedBox(width: 6),
+              Text('セキュリティテスト統計',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ]),
+            const SizedBox(height: 8),
+            Builder(builder: (ctx) {
+              final atkResults = engine.attackResults;
+              final sent     = atkResults.fold(0, (s, r) => s + r.packetsGenerated);
+              final detected = atkResults.where((r) => r.detectedBy.isNotEmpty).length;
+              final blocked  = atkResults.where((r) => r.packetsBlocked > 0).length;
+              final blockRate = detected == 0 ? 0.0 : blocked / detected * 100;
+              return GridView.count(
+                crossAxisCount: 2, shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.6,
+                children: [
+                  _MetricCard('攻撃パケット総数', '$sent', Icons.send, Colors.purple),
+                  _MetricCard('IDS検知数', '$detected', Icons.radar, Colors.orange),
+                  _MetricCard('IPS遮断数', '$blocked', Icons.block, Colors.red),
+                  _MetricCard('遮断率', '${blockRate.toStringAsFixed(1)}%',
+                      Icons.shield, blockRate > 80 ? Colors.green : Colors.amber),
+                ],
+              );
+            }),
+            const SizedBox(height: 12),
+            _AttackTypeChart(
+              typeCount: Map.fromEntries(
+                AttackType.values.map((t) {
+                  final n = engine.attackResults.where((r) => r.attackType == t).length;
+                  return MapEntry(t, n);
+                }).where((e) => e.value > 0),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           const SizedBox(height: 16),
           Text('最近のパケット (${engine.activePackets.length}件)',
               style: Theme.of(context).textTheme.titleMedium),
@@ -93,6 +138,44 @@ class _SummaryRow extends StatelessWidget {
     child: Row(children: [Expanded(child: Text(label)),
       Text('$count', style: TextStyle(fontWeight: FontWeight.bold, color: color))]),
   );
+}
+
+class _AttackTypeChart extends StatelessWidget {
+  final Map<AttackType, int> typeCount;
+  const _AttackTypeChart({required this.typeCount});
+
+  @override
+  Widget build(BuildContext context) {
+    if (typeCount.isEmpty) return const SizedBox.shrink();
+    final maxCount = typeCount.values.reduce(max).toDouble();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('攻撃タイプ別実行回数',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 8),
+          ...typeCount.entries.map((e) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(children: [
+              SizedBox(width: 130,
+                  child: Text(e.key.label,
+                      style: const TextStyle(fontSize: 11),
+                      overflow: TextOverflow.ellipsis)),
+              Expanded(child: LinearProgressIndicator(
+                value: maxCount == 0 ? 0 : e.value / maxCount,
+                backgroundColor: Colors.white12,
+                color: Colors.purple,
+                minHeight: 10,
+              )),
+              const SizedBox(width: 8),
+              Text('${e.value}', style: const TextStyle(fontSize: 11)),
+            ]),
+          )),
+        ]),
+      ),
+    );
+  }
 }
 
 class _StatusChip extends StatelessWidget {

@@ -36,9 +36,31 @@ class SyslogScreen extends ConsumerStatefulWidget {
   ConsumerState<SyslogScreen> createState() => _SyslogScreenState();
 }
 
+enum _MsgFilter { all, attack, ids, ips, routing, packet }
+
+String _msgFilterLabel(_MsgFilter f) => switch (f) {
+  _MsgFilter.all     => 'ALL',
+  _MsgFilter.attack  => 'ATTACK',
+  _MsgFilter.ids     => 'IDS',
+  _MsgFilter.ips     => 'IPS',
+  _MsgFilter.routing => 'ROUTE',
+  _MsgFilter.packet  => 'PACKET',
+};
+
+List<SyslogEntry> _applyMsgFilter(List<SyslogEntry> entries, _MsgFilter f) =>
+    switch (f) {
+      _MsgFilter.all     => entries,
+      _MsgFilter.attack  => entries.where((e) => e.message.contains('[ATTACK]')).toList(),
+      _MsgFilter.ids     => entries.where((e) => e.message.contains('[IDS')).toList(),
+      _MsgFilter.ips     => entries.where((e) => e.message.contains('[IPS')).toList(),
+      _MsgFilter.routing => entries.where((e) => e.message.toLowerCase().contains('route')).toList(),
+      _MsgFilter.packet  => entries.where((e) => e.message.toLowerCase().contains('packet')).toList(),
+    };
+
 class _SyslogScreenState extends ConsumerState<SyslogScreen> {
   SyslogSeverity? _filterSeverity;
   String? _filterFacility;
+  _MsgFilter _msgFilter = _MsgFilter.all;
 
   String _fmt(DateTime dt) =>
       '${dt.hour.toString().padLeft(2, '0')}:'
@@ -48,8 +70,9 @@ class _SyslogScreenState extends ConsumerState<SyslogScreen> {
   @override
   Widget build(BuildContext context) {
     final svc      = ref.watch(syslogProvider.notifier);
-    final entries  = svc.getEntries(
-        minSeverity: _filterSeverity, facility: _filterFacility);
+    final entries  = _applyMsgFilter(
+        svc.getEntries(minSeverity: _filterSeverity, facility: _filterFacility),
+        _msgFilter);
     final devices  = ref.watch(topologyProvider).devices;
     final facilities = ['', ...{for (final d in devices) d.name}];
 
@@ -65,12 +88,42 @@ class _SyslogScreenState extends ConsumerState<SyslogScreen> {
         ],
       ),
       body: Column(children: [
-        // ── Severity filter chips ────────────────────────────────────────
+        // ── Message-type filter chips ────────────────────────────────────
         SizedBox(
-          height: 48,
+          height: 44,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            children: _MsgFilter.values.map((f) {
+              final sel = _msgFilter == f;
+              final color = switch (f) {
+                _MsgFilter.attack  => Colors.purple,
+                _MsgFilter.ids     => Colors.orange,
+                _MsgFilter.ips     => Colors.red,
+                _MsgFilter.routing => Colors.green,
+                _MsgFilter.packet  => Colors.blue,
+                _MsgFilter.all     => Colors.grey,
+              };
+              return Padding(
+                padding: const EdgeInsets.only(right: 5),
+                child: ChoiceChip(
+                  label: Text(_msgFilterLabel(f),
+                      style: TextStyle(fontSize: 10,
+                          color: sel ? color : Colors.white60)),
+                  selected: sel,
+                  selectedColor: color.withValues(alpha: 0.25),
+                  onSelected: (_) => setState(() => _msgFilter = f),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        // ── Severity filter chips ────────────────────────────────────────
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             children: [
               _chip('ALL',   _filterSeverity == null,
                   () => setState(() => _filterSeverity = null)),

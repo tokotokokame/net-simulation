@@ -7,6 +7,70 @@ import '../../../models/network_interface.dart';
 import '../topology_state.dart';
 import '../../widgets/bandwidth_selector.dart';
 
+// ── Physical capabilities per device type ────────────────────────────────────
+
+class _PhysicalCaps {
+  final bool showMac;
+  final bool showBandwidth;
+  final bool bandwidthEditable;
+  final bool showMtu;
+  final bool showDuplex;
+  final String? duplexFixed; // non-null = fixed label, no selector
+  final bool canAddInterface;
+
+  const _PhysicalCaps({
+    this.showMac           = true,
+    this.showBandwidth     = true,
+    this.bandwidthEditable = true,
+    this.showMtu           = false,
+    this.showDuplex        = false,
+    this.duplexFixed,
+    this.canAddInterface   = false,
+  });
+}
+
+_PhysicalCaps _caps(DeviceType t) => switch (t) {
+  // Endpoints
+  DeviceType.pc || DeviceType.laptop =>
+      const _PhysicalCaps(showMac: true),
+  DeviceType.server =>
+      const _PhysicalCaps(showMac: true, showMtu: true, canAddInterface: true),
+  DeviceType.iotDevice =>
+      const _PhysicalCaps(showMac: true),
+  // Infra
+  DeviceType.router =>
+      const _PhysicalCaps(showMtu: true, showDuplex: true, canAddInterface: true),
+  DeviceType.l3Switch =>
+      const _PhysicalCaps(showMtu: true, showDuplex: true, canAddInterface: true),
+  DeviceType.switch_ =>
+      const _PhysicalCaps(showDuplex: true, canAddInterface: true),
+  DeviceType.hub =>
+      const _PhysicalCaps(showMac: false, bandwidthEditable: false,
+          duplexFixed: 'Half (固定)'),
+  DeviceType.bridge =>
+      const _PhysicalCaps(showMac: false),
+  DeviceType.wirelessAP =>
+      const _PhysicalCaps(showMac: true),
+  // Security
+  DeviceType.firewall =>
+      const _PhysicalCaps(showMtu: true, showDuplex: true, canAddInterface: true),
+  DeviceType.ids || DeviceType.ips =>
+      const _PhysicalCaps(canAddInterface: true),
+  DeviceType.natGateway =>
+      const _PhysicalCaps(canAddInterface: true),
+  // VPN / tunnels
+  DeviceType.vpnGateway || DeviceType.ipSecTunnel || DeviceType.greTunnel =>
+      const _PhysicalCaps(showMtu: true, showDuplex: true, canAddInterface: true),
+  // SDN
+  DeviceType.openFlowSwitch =>
+      const _PhysicalCaps(canAddInterface: true),
+  // Enterprise
+  DeviceType.activeDirectoryServer =>
+      const _PhysicalCaps(showMtu: true),
+  // Others: minimal
+  _ => const _PhysicalCaps(showMac: false, showBandwidth: false),
+};
+
 class PhysicalTab extends ConsumerWidget {
   final Device device;
   const PhysicalTab({super.key, required this.device});
@@ -20,25 +84,41 @@ class PhysicalTab extends ConsumerWidget {
               mac: TopologyNotifier.generateMac()));
     }
 
-    return Scaffold(
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-        children: device.interfaces.asMap().entries.map((e) => _IfaceCard(
-          device: device, iface: e.value, index: e.key,
-          onChanged: (updated) => ref.read(topologyProvider.notifier)
-              .updateInterface(device.id, e.key, updated),
-        )).toList(),
-      ),
-      bottomSheet: SizedBox(
-        height: 56, width: double.infinity,
-        child: FilledButton.icon(
-          icon: const Icon(Icons.add),
-          label: const Text('インターフェース追加'),
-          style: FilledButton.styleFrom(
-              shape: const RoundedRectangleBorder()),
-          onPressed: addInterface,
-        ),
-      ),
+    void removeInterface(int index) {
+      ref.read(topologyProvider.notifier).removeInterface(device.id, index);
+    }
+
+    final ifaces = device.interfaces;
+    final caps   = _caps(device.type);
+
+    if (ifaces.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('インターフェースがありません', style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 16),
+          if (caps.canAddInterface)
+            FilledButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('eth0 を追加'),
+              onPressed: addInterface,
+            ),
+        ]),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      children: ifaces.asMap().entries.map((e) => _IfaceCard(
+        device: device,
+        iface: e.value,
+        index: e.key,
+        caps: caps,
+        isLast: e.key == ifaces.length - 1,
+        onChanged: (updated) => ref.read(topologyProvider.notifier)
+            .updateInterface(device.id, e.key, updated),
+        onAdd: caps.canAddInterface ? addInterface : null,
+        onDelete: () => removeInterface(e.key),
+      )).toList(),
     );
   }
 }
@@ -49,8 +129,22 @@ class _IfaceCard extends StatefulWidget {
   final Device device;
   final NetworkInterface iface;
   final int index;
+  final bool isLast;
+  final _PhysicalCaps caps;
   final void Function(NetworkInterface) onChanged;
-  const _IfaceCard({required this.device, required this.iface, required this.index, required this.onChanged});
+  final VoidCallback? onAdd;
+  final VoidCallback onDelete;
+
+  const _IfaceCard({
+    required this.device,
+    required this.iface,
+    required this.index,
+    required this.isLast,
+    required this.caps,
+    required this.onChanged,
+    required this.onAdd,
+    required this.onDelete,
+  });
 
   @override
   State<_IfaceCard> createState() => _IfaceCardState();
@@ -106,15 +200,16 @@ class _IfaceCardState extends State<_IfaceCard> {
   @override
   Widget build(BuildContext context) {
     final isUp = widget.iface.status == InterfaceStatus.up;
+    final caps = widget.caps;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // ── Header: name + up/down switch ─────────────────────────────
+          // ── Header: name + Up/Down + delete + add ─────────────────────
           Row(children: [
             Icon(Icons.cable, color: isUp ? Colors.green : Colors.red, size: 18),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Text(widget.iface.name,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             const Spacer(),
@@ -126,60 +221,103 @@ class _IfaceCardState extends State<_IfaceCard> {
             Text(isUp ? 'Up' : 'Down',
                 style: TextStyle(
                     color: isUp ? Colors.green : Colors.red, fontSize: 12)),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
+              onPressed: widget.onDelete,
+              tooltip: 'インターフェース削除',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            if (widget.isLast && widget.onAdd != null) ...[
+              const SizedBox(width: 6),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline,
+                    color: Color(0xFF64B5F6), size: 22),
+                onPressed: widget.onAdd,
+                tooltip: 'インターフェース追加',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
           ]),
           const SizedBox(height: 8),
 
-          // ── IP / Subnet / MAC ─────────────────────────────────────────
+          // ── IP / Subnet ───────────────────────────────────────────────
           _field('IPアドレス', _ip, '192.168.1.1', TextInputType.number),
           const SizedBox(height: 6),
           _field('サブネット (CIDR)', _subnet, '24', TextInputType.number),
-          const SizedBox(height: 6),
-          _field('MACアドレス', _mac, 'AA:BB:CC:DD:EE:FF', TextInputType.text),
-          const SizedBox(height: 10),
 
-          // ── Bandwidth ─────────────────────────────────────────────────
-          const Text('帯域上限', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          BandwidthSelector(
-            currentBandwidth: _bandwidth,
-            onChanged: (v) => setState(() => _bandwidth = v),
-          ),
-          const SizedBox(height: 10),
+          // ── MAC (conditional) ─────────────────────────────────────────
+          if (caps.showMac) ...[
+            const SizedBox(height: 6),
+            _field('MACアドレス', _mac, 'AA:BB:CC:DD:EE:FF', TextInputType.text),
+          ],
 
-          // ── MTU ───────────────────────────────────────────────────────
-          TextField(
-            controller: _mtu,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              labelText: 'MTU (576〜9000)',
-              hintText: '1500',
-              border: const OutlineInputBorder(),
-              isDense: true,
-              errorText: () {
-                final v = int.tryParse(_mtu.text);
-                if (v == null) return null;
-                return (v < 576 || v > 9000) ? '576〜9000 の範囲で入力' : null;
-              }(),
+          // ── Bandwidth (conditional) ───────────────────────────────────
+          if (caps.showBandwidth) ...[
+            const SizedBox(height: 10),
+            const Text('帯域上限', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            caps.bandwidthEditable
+                ? BandwidthSelector(
+                    currentBandwidth: _bandwidth,
+                    onChanged: (v) => setState(() => _bandwidth = v),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text('10 Mbps（固定）',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                  ),
+          ],
+
+          // ── MTU (conditional) ─────────────────────────────────────────
+          if (caps.showMtu) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _mtu,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: 'MTU (576〜9000)',
+                hintText: '1500',
+                border: const OutlineInputBorder(),
+                isDense: true,
+                errorText: () {
+                  final v = int.tryParse(_mtu.text);
+                  if (v == null) return null;
+                  return (v < 576 || v > 9000) ? '576〜9000 の範囲で入力' : null;
+                }(),
+              ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _save(),
             ),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (_) => _save(),
-          ),
-          const SizedBox(height: 10),
+          ],
 
-          // ── Duplex ────────────────────────────────────────────────────
-          const Text('デュプレックス', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 8,
-            children: Duplex.values.map((d) => ChoiceChip(
-              label: Text(d == Duplex.full ? 'Full' : 'Half'),
-              selected: _duplex == d,
-              onSelected: (_) => setState(() => _duplex = d),
-            )).toList(),
-          ),
-          const SizedBox(height: 10),
+          // ── Duplex (conditional) ──────────────────────────────────────
+          if (caps.showDuplex) ...[
+            const SizedBox(height: 10),
+            const Text('デュプレックス',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              children: Duplex.values.map((d) => ChoiceChip(
+                label: Text(d == Duplex.full ? 'Full' : 'Half'),
+                selected: _duplex == d,
+                onSelected: (_) => setState(() => _duplex = d),
+              )).toList(),
+            ),
+          ] else if (caps.duplexFixed != null) ...[
+            const SizedBox(height: 10),
+            const Text('デュプレックス',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(caps.duplexFixed!,
+                style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          ],
 
+          const SizedBox(height: 10),
           // ── Save ──────────────────────────────────────────────────────
           SizedBox(
             width: double.infinity,
