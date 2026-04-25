@@ -10,6 +10,8 @@ import '../models/link.dart';
 import '../models/network_interface.dart';
 import '../models/packet.dart';
 import '../models/topology.dart';
+import '../network/arp_table.dart';
+import '../network/dns_service.dart';
 import 'bgp_engine.dart';
 import 'delay_model.dart';
 import 'dhcp_service.dart';
@@ -132,9 +134,13 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
           if (iface.ip == '0.0.0.0' || iface.ip.isEmpty) {
             final ip = '192.168.1.$ipSuffix'; ipSuffix++;
             warnings.add('${device.name}/${iface.name}: IP自動補完 → $ip');
-            ifaces.add(iface.copyWith(ip: ip));
+            final mac = iface.mac.isEmpty || iface.mac == '00:00:00:00:00:00'
+                ? _genMac() : iface.mac;
+            ifaces.add(iface.copyWith(ip: ip, mac: mac));
           } else {
-            ifaces.add(iface);
+            final mac = iface.mac.isEmpty || iface.mac == '00:00:00:00:00:00'
+                ? _genMac() : iface.mac;
+            ifaces.add(iface.copyWith(mac: mac));
           }
         }
         preparedDevices.add(device.copyWith(interfaces: ifaces));
@@ -197,7 +203,32 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
     try { _mplsLsps = MplsEngine.computeLsps(topology, _processor); }
     catch (e) { log('MPLS error: $e', name: 'Engine'); }
 
-    // 7. Demo timer countdown.
+    // 7. ARP table population — pre-seed all device IP→MAC mappings.
+    try {
+      for (final device in topology.devices) {
+        final ctx = _processor.contextFor(device.id);
+        for (final other in topology.devices) {
+          for (final iface in other.interfaces) {
+            if (iface.ip == '0.0.0.0' || iface.ip.isEmpty) continue;
+            ctx.arpTable.addEntry(ARPEntry(
+              ipAddress: iface.ip,
+              macAddress: iface.mac.isEmpty ? '00:00:00:00:00:00' : iface.mac,
+              interfaceName: iface.name,
+              expiry: DateTime.now().add(const Duration(hours: 4)),
+            ));
+          }
+        }
+      }
+      log('ARP: tables seeded for ${topology.devices.length} devices', name: 'Engine');
+    } catch (e) { log('ARP seed error: $e', name: 'Engine'); }
+
+    // 8. DNS — register device hostnames.
+    try {
+      final dns = DnsService.fromTopology(topology);
+      log('DNS: ${dns.records.length} records built', name: 'Engine');
+    } catch (e) { log('DNS error: $e', name: 'Engine'); }
+
+    // 9. Demo timer countdown.
     _demoTimer.start();
     _timerSub ??= _demoTimer.onExpired.listen((_) {
       log('SimulationEngine paused by demo timer', name: 'Engine');
@@ -227,7 +258,7 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
       }
     }
 
-    // 8. Ticker — simulation loop.
+    // 10. Ticker — simulation loop.
     _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) => _tick());
     state = state.copyWith(simState: SimulationState.running);
     log('SimulationEngine started: ${topology.name} '

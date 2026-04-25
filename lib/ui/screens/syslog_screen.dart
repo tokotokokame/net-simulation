@@ -167,34 +167,9 @@ class _SyslogScreenState extends ConsumerState<SyslogScreen> {
         Expanded(
           child: entries.isEmpty
               ? const Center(child: Text('ログはありません', style: TextStyle(color: Colors.grey)))
-              : ListView.separated(
+              : ListView.builder(
                   itemCount: entries.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (ctx, i) {
-                    final e = entries[i];
-                    final color = _severityColor(e.severity);
-                    return ListTile(
-                      dense: true,
-                      leading: Icon(_severityIcon(e.severity), color: color, size: 20),
-                      title: Text(e.message,
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis),
-                      subtitle: Text(
-                          '${_fmt(e.timestamp)}  ${e.facility}',
-                          style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: color.withValues(alpha: 0.5)),
-                        ),
-                        child: Text(e.severity.name.toUpperCase(),
-                            style: TextStyle(fontSize: 9, color: color,
-                                fontWeight: FontWeight.bold)),
-                      ),
-                    );
-                  },
+                  itemBuilder: (ctx, i) => _buildLogEntry(entries[i]),
                 ),
         ),
       ]),
@@ -207,6 +182,72 @@ class _SyslogScreenState extends ConsumerState<SyslogScreen> {
           setState(() {});
         },
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildLogEntry(SyslogEntry entry) {
+    final color = _severityColor(entry.severity);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.07))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(_severityIcon(entry.severity), color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.message,
+                  style: const TextStyle(fontSize: 13, color: Colors.white, height: 1.4),
+                  softWrap: true,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      _fmt(entry.timestamp),
+                      style: const TextStyle(fontSize: 11, color: Colors.white38),
+                    ),
+                    if (entry.facility.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          entry.facility,
+                          style: const TextStyle(fontSize: 11, color: Colors.white54),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: color.withValues(alpha: 0.5)),
+            ),
+            child: Text(
+              entry.severity.name.toUpperCase(),
+              style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }

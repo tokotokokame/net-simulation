@@ -266,12 +266,7 @@ class TopologyPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(TopologyPainter old) =>
-      old.topology != topology ||
-      old.selectedDeviceId != selectedDeviceId ||
-      old.particles != particles ||
-      old.attackPackets != attackPackets ||
-      old.alertedDeviceIds != alertedDeviceIds;
+  bool shouldRepaint(TopologyPainter old) => true;
 
   /// Returns the ID of the first device within [hitRadius]px of [tap], or null.
   static String? deviceAt(

@@ -338,11 +338,10 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     ctrl.forward().then((_) => ctrl.dispose());
   }
 
-  Widget _buildZoomControls(double bottomPad) {
-    final bottom = 130 + bottomPad + 56 + 16;
+  Widget _buildZoomControls() {
     return Positioned(
-      right: 16,
-      bottom: bottom,
+      left: 16,
+      bottom: 16,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         _ZoomButton(icon: Icons.add, tooltip: 'ズームイン',  onTap: () => _zoom(1.25)),
         const SizedBox(height: 4),
@@ -383,13 +382,18 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: Text(topo.name, style: const TextStyle(fontSize: 16)),
+        title: null,
+        titleSpacing: 0,
+        leading: const SizedBox.shrink(),
         actions: [
           if (authState is UnauthenticatedState && timerSecs != null)
-            Center(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text('${timerSecs ~/ 60}m ${timerSecs % 60}s',
+            Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Center(child: Text('${timerSecs ~/ 60}m ${timerSecs % 60}s',
                   style: TextStyle(fontSize: 12,
-                      color: timerSecs < 300 ? Colors.red : Colors.white70)))),
+                      color: timerSecs < 300 ? Colors.red : Colors.white70))),
+            ),
+          const Spacer(),
           IconButton(icon: const Icon(Icons.save_outlined),       tooltip: '保存',          onPressed: _saveTopology),
           IconButton(icon: const Icon(Icons.folder_open_outlined), tooltip: '読み込み',      onPressed: () => context.push('/topologies')),
           IconButton(icon: const Icon(Icons.bar_chart),            tooltip: '統計',          onPressed: () => context.push('/stats')),
@@ -444,7 +448,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
           ),
         ),
         // Zoom buttons
-        _buildZoomControls(bottomPad),
+        _buildZoomControls(),
       ]),
       bottomSheet: SafeArea(
         minimum: EdgeInsets.only(bottom: bottomPad),
