@@ -38,6 +38,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
   final _txCtrl = TransformationController();
   late final SimulationAnimator _animator;
   List<PacketParticle> _particles = [];
+  String? _draggingDeviceId;
 
   @override
   void initState() { super.initState(); _animator = SimulationAnimator(this)..addListener(_onAnimFrame); }
@@ -61,6 +62,46 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     ref.read(topologyProvider.notifier).addDevice(Device(id: _uuid.v4(), type: type, name: type.name,
         x: c.dx, y: c.dy, interfaces: const [NetworkInterface(name: 'eth0', ip: '0.0.0.0', subnet: 24, mac: '00:00:00:00:00:00')]));
     developer.log('Added $type at $c', name: 'Editor');
+  }
+
+  void _addAtPosition(DeviceType type, Offset canvasPos) {
+    final c = _snap(canvasPos);
+    ref.read(topologyProvider.notifier).addDevice(Device(id: _uuid.v4(), type: type, name: type.name,
+        x: c.dx, y: c.dy, interfaces: const [NetworkInterface(name: 'eth0', ip: '0.0.0.0', subnet: 24, mac: '00:00:00:00:00:00')]));
+    developer.log('Dropped $type at $c', name: 'Editor');
+  }
+
+  void _onPanStart(DragStartDetails e) {
+    final hit = _hitTest(e.localPosition);
+    setState(() => _draggingDeviceId = hit?.id);
+  }
+
+  void _onPanUpdate(DragUpdateDetails e) {
+    if (_draggingDeviceId != null) {
+      final canvas = _toCanvas(e.localPosition, _txCtrl.value);
+      final dev = ref.read(topologyProvider).devices
+          .where((d) => d.id == _draggingDeviceId).firstOrNull;
+      if (dev != null) {
+        ref.read(topologyProvider.notifier).updateDevice(dev.copyWith(x: canvas.dx, y: canvas.dy));
+      }
+    } else {
+      final m = _txCtrl.value.clone();
+      m.storage[12] += e.delta.dx;
+      m.storage[13] += e.delta.dy;
+      _txCtrl.value = m;
+    }
+  }
+
+  void _onPanEnd(DragEndDetails e) {
+    if (_draggingDeviceId != null) {
+      final dev = ref.read(topologyProvider).devices
+          .where((d) => d.id == _draggingDeviceId).firstOrNull;
+      if (dev != null) {
+        final s = _snap(Offset(dev.x, dev.y));
+        ref.read(topologyProvider.notifier).updateDevice(dev.copyWith(x: s.dx, y: s.dy));
+      }
+      setState(() => _draggingDeviceId = null);
+    }
   }
 
   void _onTap(Offset local) {
@@ -187,7 +228,6 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     final isRunning = engine.simState == SimulationState.running;
     final authState = ref.watch(userAuthProvider);
     final timerSecs = ref.watch(demoRemainingProvider).valueOrNull;
-    final safeBottom = MediaQuery.of(context).padding.bottom;
 
     ref.listen(demoRemainingProvider, (_, next) {
       if (next.valueOrNull == 0) {
@@ -197,6 +237,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     });
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(topo.name, style: const TextStyle(fontSize: 16)),
         actions: [
@@ -223,25 +264,42 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
         ],
       ),
       body: Stack(children: [
-        GestureDetector(
-          onTapUp: (e) => _onTap(e.localPosition),
-          onLongPressStart: (e) => _onLongPress(e.localPosition, e.globalPosition),
-          onDoubleTapDown: (e) {
-            final hit = _hitTest(e.localPosition);
-            if (hit != null) { context.push('/config/${hit.id}'); return; }
-            _onDoubleTapLink(e.localPosition);
+        DragTarget<DeviceType>(
+          onAcceptWithDetails: (details) {
+            final box = context.findRenderObject()! as RenderBox;
+            final local = box.globalToLocal(details.offset);
+            _addAtPosition(details.data, _toCanvas(local, _txCtrl.value));
           },
-          child: InteractiveViewer(
-            transformationController: _txCtrl,
-            minScale: 0.3, maxScale: 4.0, constrained: false,
-            child: SizedBox(width: 3000, height: 3000,
-                child: CustomPaint(painter: TopologyPainter(topology: topo, selectedDeviceId: selected, particles: _particles))),
+          builder: (_, __, ___) => GestureDetector(
+            onTapUp: (e) => _onTap(e.localPosition),
+            onLongPressStart: (e) => _onLongPress(e.localPosition, e.globalPosition),
+            onDoubleTapDown: (e) {
+              final hit = _hitTest(e.localPosition);
+              if (hit != null) { context.push('/config/${hit.id}'); return; }
+              _onDoubleTapLink(e.localPosition);
+            },
+            onPanStart: _onPanStart,
+            onPanUpdate: _onPanUpdate,
+            onPanEnd: _onPanEnd,
+            child: InteractiveViewer(
+              transformationController: _txCtrl,
+              panEnabled: false,
+              minScale: 0.3, maxScale: 4.0, constrained: false,
+              child: SizedBox(width: 3000, height: 3000,
+                  child: CustomPaint(painter: TopologyPainter(topology: topo, selectedDeviceId: selected, particles: _particles))),
+            ),
           ),
         ),
       ]),
-      bottomSheet: DevicePalette(onDeviceSelected: _addAtCenter),
+      bottomSheet: SafeArea(
+        minimum: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        child: SizedBox(
+          height: 130,
+          child: DevicePalette(onDeviceSelected: _addAtCenter),
+        ),
+      ),
       floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: 110 + safeBottom),
+        padding: EdgeInsets.only(bottom: 130 + MediaQuery.of(context).padding.bottom + 8),
         child: FloatingActionButton(
           backgroundColor: isRunning ? Colors.red[700] : Colors.blue[700],
           onPressed: () {

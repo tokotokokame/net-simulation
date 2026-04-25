@@ -28,7 +28,7 @@ class PhysicalTab extends ConsumerWidget {
             final n = device.interfaces.length;
             ref.read(topologyProvider.notifier).updateInterface(device.id, n,
                 NetworkInterface(name: 'eth$n', ip: '0.0.0.0', subnet: 24,
-                    mac: 'AA:BB:CC:DD:EE:${n.toRadixString(16).padLeft(2, '0').toUpperCase()}'));
+                    mac: TopologyNotifier.generateMac()));
           },
         ),
       ],
@@ -81,6 +81,12 @@ class _IfaceCardState extends State<_IfaceCard> {
       mtu:       mtu.clamp(576, 9000),
       duplex:    _duplex,
     ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('設定を保存しました'),
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   @override

@@ -4,6 +4,21 @@ import '../../models/device.dart';
 import '../../app/theme.dart';
 import '../../visualization/device_style.dart';
 
+// ── Drag feedback color ───────────────────────────────────────────────────────
+
+Color _getDeviceColor(DeviceType type) => switch (type) {
+      DeviceType.router                                       => Colors.blue[700]!,
+      DeviceType.l3Switch || DeviceType.switch_              => Colors.green[700]!,
+      DeviceType.firewall || DeviceType.ids || DeviceType.ips => Colors.red[700]!,
+      DeviceType.pc || DeviceType.laptop ||
+      DeviceType.server || DeviceType.iotDevice              => Colors.blueGrey[600]!,
+      DeviceType.internetCloud || DeviceType.mplsCloud ||
+      DeviceType.lteNetwork || DeviceType.fiveGNetwork       => Colors.indigo[600]!,
+      DeviceType.vpnGateway                                  => Colors.purple[600]!,
+      DeviceType.sdnController || DeviceType.openFlowSwitch  => Colors.teal[600]!,
+      _                                                      => Colors.grey[600]!,
+    };
+
 // ── Category data ─────────────────────────────────────────────────────────────
 
 const _categories = [
@@ -123,8 +138,21 @@ class _DeviceTile extends StatelessWidget {
     final fs = AppTheme.fontSize(context);
     return Draggable<DeviceType>(
       data: type,
-      feedback: Material(shape: const CircleBorder(), color: color,
-          child: Padding(padding: const EdgeInsets.all(10), child: Icon(icon, color: Colors.white, size: 22))),
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(
+          opacity: 0.85,
+          child: Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(
+              color: _getDeviceColor(type),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 4))],
+            ),
+            child: Icon(icon, color: Colors.white, size: 36),
+          ),
+        ),
+      ),
       childWhenDragging: Opacity(opacity: 0.3, child: _tile(fs)),
       child: GestureDetector(onTap: onTap, child: _tile(fs)),
     );

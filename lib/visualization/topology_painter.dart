@@ -203,10 +203,34 @@ class TopologyPainter extends CustomPainter {
 
   void _label(Canvas canvas, Offset center, String name) {
     final tp = TextPainter(
-      text: TextSpan(text: name, style: const TextStyle(fontSize: 11, color: Colors.black87, fontWeight: FontWeight.w500)),
+      text: TextSpan(
+        text: name,
+        style: const TextStyle(
+          color: Color(0xFF1A1A2E),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          height: 1.2,
+        ),
+      ),
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: 80);
-    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy + kR + 4));
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: 100);
+
+    final labelX = center.dx - tp.width / 2;
+    final labelY = center.dy + kR + 6;
+
+    final bgRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(labelX - 4, labelY - 2, tp.width + 8, tp.height + 4),
+      const Radius.circular(4),
+    );
+
+    canvas.drawRRect(bgRect,
+        Paint()
+          ..color = Colors.black26
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
+    canvas.drawRRect(bgRect,
+        Paint()..color = const Color(0xEEF5F5F5));
+    tp.paint(canvas, Offset(labelX, labelY));
   }
 
   void _particle(Canvas canvas, PacketParticle p) {
