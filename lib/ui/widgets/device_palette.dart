@@ -23,15 +23,15 @@ Color _getDeviceColor(DeviceType type) {
     case DeviceType.switch_:
       return Colors.green[500]!;
 
-    // インフラ L2（エメラルド/シアン系）
+    // インフラ L2（ライトブルー系）
     case DeviceType.hub:
-      return const Color(0xFF00897B); // teal[600]
+      return const Color(0xFF64B5F6); // Light Blue 300
     case DeviceType.bridge:
       return const Color(0xFF00ACC1); // cyan[600]
     case DeviceType.wirelessAP:
-      return const Color(0xFF26A69A); // teal[400]
+      return const Color(0xFF64B5F6); // Light Blue 300
     case DeviceType.natGateway:
-      return const Color(0xFF00838F); // cyan[800]
+      return const Color(0xFF64B5F6); // Light Blue 300
 
     // セキュリティ（赤系）
     case DeviceType.firewall:
@@ -187,6 +187,8 @@ class _DeviceTile extends StatelessWidget {
     final fs = AppTheme.fontSize(context);
     return Draggable<DeviceType>(
       data: type,
+      // Center the 64x64 feedback icon under the finger.
+      feedbackOffset: const Offset(-32, -32),
       feedback: Material(
         color: Colors.transparent,
         child: Opacity(

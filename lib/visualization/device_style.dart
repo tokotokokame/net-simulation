@@ -4,10 +4,13 @@ import '../models/device.dart';
 
 enum DeviceShape { circle, hexagon, roundRect }
 
+const _kLightBlue = Color(0xFF64B5F6); // Light Blue 300
+
 Color deviceColor(DeviceType t) => switch (t) {
       DeviceType.router => Colors.blue,
       DeviceType.l3Switch || DeviceType.switch_ => Colors.green,
       DeviceType.firewall || DeviceType.ids || DeviceType.ips => Colors.red,
+      DeviceType.hub || DeviceType.wirelessAP || DeviceType.natGateway => _kLightBlue,
       DeviceType.internetCloud ||
       DeviceType.mplsCloud ||
       DeviceType.lteNetwork ||

@@ -323,8 +323,16 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
         DragTarget<DeviceType>(
           onAcceptWithDetails: (details) {
             final box = context.findRenderObject()! as RenderBox;
+            // details.offset is the global position corrected by feedbackOffset.
+            // Convert to body-local, then apply inverse transform matrix.
             final local = box.globalToLocal(details.offset);
-            _addAtPosition(details.data, _toCanvas(local, _txCtrl.value));
+            final inv = Matrix4.inverted(_txCtrl.value);
+            final s = inv.storage;
+            final canvas = Offset(
+              s[0] * local.dx + s[4] * local.dy + s[12],
+              s[1] * local.dx + s[5] * local.dy + s[13],
+            );
+            _addAtPosition(details.data, canvas);
           },
           builder: (_, __, ___) => GestureDetector(
             onTapUp: (e) => _onTap(e.localPosition),

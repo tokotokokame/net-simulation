@@ -13,25 +13,32 @@ class PhysicalTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        ...device.interfaces.asMap().entries.map((e) => _IfaceCard(
+    void addInterface() {
+      final n = device.interfaces.length;
+      ref.read(topologyProvider.notifier).updateInterface(device.id, n,
+          NetworkInterface(name: 'eth$n', ip: '0.0.0.0', subnet: 24,
+              mac: TopologyNotifier.generateMac()));
+    }
+
+    return Scaffold(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+        children: device.interfaces.asMap().entries.map((e) => _IfaceCard(
           device: device, iface: e.value, index: e.key,
           onChanged: (updated) => ref.read(topologyProvider.notifier)
               .updateInterface(device.id, e.key, updated),
-        )),
-        const SizedBox(height: 8),
-        FilledButton.icon(
-          icon: const Icon(Icons.add), label: const Text('インターフェース追加'),
-          onPressed: () {
-            final n = device.interfaces.length;
-            ref.read(topologyProvider.notifier).updateInterface(device.id, n,
-                NetworkInterface(name: 'eth$n', ip: '0.0.0.0', subnet: 24,
-                    mac: TopologyNotifier.generateMac()));
-          },
+        )).toList(),
+      ),
+      bottomSheet: SizedBox(
+        height: 56, width: double.infinity,
+        child: FilledButton.icon(
+          icon: const Icon(Icons.add),
+          label: const Text('インターフェース追加'),
+          style: FilledButton.styleFrom(
+              shape: const RoundedRectangleBorder()),
+          onPressed: addInterface,
         ),
-      ],
+      ),
     );
   }
 }

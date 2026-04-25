@@ -2,11 +2,16 @@
 import 'package:flutter/material.dart';
 import '../models/packet.dart';
 
+const Color kColorForwarding = Color(0xFF2196F3); // blue
+const Color kColorSuccess    = Color(0xFF4CAF50); // green
+const Color kColorDropped    = Color(0xFFF44336); // red
+const Color kColorDelayed    = Color(0xFFFFC107); // amber
+
 Color packetColor(PacketStatus status) => switch (status) {
-      PacketStatus.inTransit => Colors.blue,
-      PacketStatus.delivered => Colors.green,
-      PacketStatus.dropped => Colors.red,
-      PacketStatus.delayed => Colors.yellow,
+      PacketStatus.inTransit => kColorForwarding,
+      PacketStatus.delivered => kColorSuccess,
+      PacketStatus.dropped   => kColorDropped,
+      PacketStatus.delayed   => kColorDelayed,
     };
 
 class PacketParticle {

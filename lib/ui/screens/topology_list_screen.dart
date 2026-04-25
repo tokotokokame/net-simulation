@@ -136,9 +136,25 @@ class _TopologyListScreenState extends ConsumerState<TopologyListScreen> {
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (ctx, i) {
               final meta = list[i];
+              final isDemo = meta.id.startsWith('demo-');
               return ListTile(
-                leading: const Icon(Icons.account_tree_outlined),
-                title: Text(meta.name),
+                leading: Icon(
+                  isDemo ? Icons.school_outlined : Icons.account_tree_outlined,
+                  color: isDemo ? Colors.blue[300] : null,
+                ),
+                title: Row(children: [
+                  Expanded(child: Text(meta.name)),
+                  if (isDemo)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[800],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text('Demo',
+                          style: TextStyle(color: Colors.white, fontSize: 10)),
+                    ),
+                ]),
                 subtitle: Text(
                     '${meta.deviceCount} デバイス  •  ${_fmt(meta.createdAt)}'),
                 trailing: const Icon(Icons.chevron_right, size: 18),

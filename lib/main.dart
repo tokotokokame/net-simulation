@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/app.dart';
+import 'storage/topology_storage.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
@@ -16,6 +17,7 @@ void main() {
     ),
   );
   log('Net.Simulation v4 starting', name: 'App');
+  await TopologyStorage().seedDemoTopologiesIfNeeded();
   runApp(
     const ProviderScope(
       child: NetSimulationApp(),

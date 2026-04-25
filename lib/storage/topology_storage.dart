@@ -7,6 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/topology.dart';
 import '../models/device.dart';
 import '../models/link.dart';
+import 'demo_topologies.dart';
 
 class TopologyMeta {
   final String id, name;
@@ -73,6 +74,20 @@ class TopologyStorage {
     final db = await _open();
     await db.delete('topologies', where: 'id = ?', whereArgs: [id]);
     log('Deleted topology: $id', name: 'Storage');
+  }
+
+  /// Seeds the five demo topologies on first launch.
+  /// Safe to call multiple times — skips any demo already present.
+  Future<void> seedDemoTopologiesIfNeeded() async {
+    final db = await _open();
+    for (final topo in allDemoTopologies) {
+      final rows = await db.query('topologies',
+          columns: ['id'], where: 'id = ?', whereArgs: [topo.id]);
+      if (rows.isEmpty) {
+        await saveTopology(topo);
+        log('Seeded demo topology: ${topo.name}', name: 'Storage');
+      }
+    }
   }
 
   Topology _fromRow(Map<String, dynamic> row) {

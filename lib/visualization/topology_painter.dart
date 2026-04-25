@@ -234,10 +234,24 @@ class TopologyPainter extends CustomPainter {
   }
 
   void _particle(Canvas canvas, PacketParticle p) {
-    final opacity = p.status == PacketStatus.delivered ? (1.0 - p.progress * 0.5).clamp(0.0, 1.0) : 1.0;
-    final paint = Paint()..color = p.color.withValues(alpha: opacity);
-    canvas.drawCircle(p.currentPosition, p.radius, paint);
-    if (p.status == PacketStatus.dropped) { _crossMark(canvas, p.currentPosition, p.radius, Colors.red); }
+    final pos = p.currentPosition;
+    final opacity = p.status == PacketStatus.delivered
+        ? (1.0 - p.progress * 0.5).clamp(0.0, 1.0)
+        : 1.0;
+    final color = p.color.withValues(alpha: opacity);
+
+    // Glow (outer)
+    canvas.drawCircle(pos, p.radius * 2.5,
+        Paint()
+          ..color = color.withValues(alpha: opacity * 0.25)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+
+    // Particle body
+    canvas.drawCircle(pos, p.radius, Paint()..color = color);
+
+    if (p.status == PacketStatus.dropped) {
+      _crossMark(canvas, pos, p.radius, Colors.red);
+    }
   }
 
   void _crossMark(Canvas canvas, Offset c, double r, Color color) {
