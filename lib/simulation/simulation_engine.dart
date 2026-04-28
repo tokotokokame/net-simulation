@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:math' as math;
+import 'package:flutter/material.dart' show Offset;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/demo_timer_service.dart';
 import '../models/attack_packet.dart';
@@ -12,6 +13,7 @@ import '../models/packet.dart';
 import '../models/topology.dart';
 import '../network/arp_table.dart';
 import '../network/dns_service.dart';
+import '../visualization/packet_particle.dart';
 import 'bgp_engine.dart';
 import 'delay_model.dart';
 import 'dhcp_service.dart';
@@ -20,6 +22,7 @@ import 'mpls_engine.dart';
 import 'ospf_engine.dart';
 import 'packet_processor.dart';
 import 'rip_engine.dart';
+import 'routing_engine.dart';
 import 'traffic_generator.dart';
 import 'vlan_engine.dart';
 
@@ -60,22 +63,26 @@ class SimulationEngineState {
   final List<Packet> activePackets;
   final SimulationStats stats;
   final List<AttackResult> attackResults;
+  final List<PacketParticle> particles;
   const SimulationEngineState({
     this.simState = SimulationState.idle,
     this.activePackets = const [],
     this.stats = const SimulationStats(),
     this.attackResults = const [],
+    this.particles = const [],
   });
   SimulationEngineState copyWith({
     SimulationState? simState,
     List<Packet>? activePackets,
     SimulationStats? stats,
     List<AttackResult>? attackResults,
+    List<PacketParticle>? particles,
   }) => SimulationEngineState(
     simState: simState ?? this.simState,
     activePackets: activePackets ?? this.activePackets,
     stats: stats ?? this.stats,
     attackResults: attackResults ?? this.attackResults,
+    particles: particles ?? this.particles,
   );
 }
 
@@ -83,12 +90,14 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
   final DemoTimerService _demoTimer;
   final PacketProcessor _processor = PacketProcessor();
   final TrafficGenerator _trafficGen = TrafficGenerator();
+  final RoutingEngine _routingEngine = RoutingEngine();
 
   Topology? _topology;
   Timer? _ticker;
   StreamSubscription<SimulationPausedByTimer>? _timerSub;
   final _pending = <Packet>[];
   final _trafficSubs = <StreamSubscription<Packet>>[];
+  final _particles = <PacketParticle>[];
   Map<String, String> _dhcpAssignments = {};
   Map<String, int> _mplsLsps = {};
 
@@ -228,6 +237,9 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
       log('DNS: ${dns.records.length} records built', name: 'Engine');
     } catch (e) { log('DNS error: $e', name: 'Engine'); }
 
+    // 8b. Pre-compute path particles for every link (both directions).
+    _spawnParticlesForTopology(topology);
+
     // 9. Demo timer countdown.
     _demoTimer.start();
     _timerSub ??= _demoTimer.onExpired.listen((_) {
@@ -279,10 +291,15 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
     for (final s in _trafficSubs) { s.cancel(); }
     _trafficSubs.clear();
     _pending.clear();
+    _particles.clear();
     _dhcpAssignments = {};
     _mplsLsps = {};
     _demoTimer.pause();
-    state = state.copyWith(simState: SimulationState.stopped, activePackets: const []);
+    state = state.copyWith(
+      simState: SimulationState.stopped,
+      activePackets: const [],
+      particles: const [],
+    );
     log('SimulationEngine stopped', name: 'Engine');
   }
 
@@ -290,6 +307,10 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
 
   void _tick() {
     if (simState != SimulationState.running || _topology == null) return;
+
+    // Advance particle positions (dt = 100ms = 0.1s).
+    _updateParticles(0.1);
+
     final batch = _pending.take(10).toList();
     if (batch.isEmpty) return;
     _pending.removeRange(0, batch.length.clamp(0, _pending.length));
@@ -350,7 +371,86 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
     }
 
     if (active.length > 2000) active.removeRange(0, active.length - 2000);
-    state = state.copyWith(activePackets: active, stats: stats);
+    state = state.copyWith(
+      activePackets: active,
+      stats: stats,
+      particles: List.of(_particles),
+    );
+  }
+
+  // ── Particle management ───────────────────────────────────────────────────
+
+  void _spawnParticlesForTopology(Topology topology) {
+    _particles.clear();
+    int idx = 0;
+    for (final link in topology.links) {
+      if (!link.isActive) continue;
+      final a = topology.devices.where((d) => d.id == link.deviceAId).firstOrNull;
+      final b = topology.devices.where((d) => d.id == link.deviceBId).firstOrNull;
+      if (a == null || b == null) continue;
+
+      final pathAB = _routingEngine.shortestPath(a.id, b.id, topology);
+      log('[Engine] ${a.name}→${b.name}: ${pathAB.length} hops', name: 'Engine');
+      if (pathAB.length >= 2) _spawnParticle('p${idx++}', pathAB, topology);
+
+      final pathBA = _routingEngine.shortestPath(b.id, a.id, topology);
+      log('[Engine] ${b.name}→${a.name}: ${pathBA.length} hops', name: 'Engine');
+      if (pathBA.length >= 2) _spawnParticle('p${idx++}', pathBA, topology);
+    }
+    log('[Engine] ${_particles.length} particles spawned', name: 'Engine');
+  }
+
+  void _spawnParticle(String id, List<String> deviceIds, Topology topology) {
+    final positions = deviceIds
+        .map((did) => topology.devices.where((d) => d.id == did).firstOrNull)
+        .whereType<Device>()
+        .map((d) => Offset(d.x, d.y))
+        .toList();
+    if (positions.length < 2) return;
+    _particles.add(PacketParticle(
+      id: id,
+      path: positions,
+      position: positions.first,
+    ));
+  }
+
+  void _updateParticles(double dt) {
+    for (final p in _particles) {
+      if (p.status == PacketStatus.delivered) {
+        p.doneFrames++;
+        p.progress = (p.doneFrames / 20.0).clamp(0.0, 1.0);
+        if (p.doneFrames > 20) p.reset();
+        continue;
+      }
+
+      if (p.status == PacketStatus.dropped) {
+        p.doneFrames++;
+        if (p.doneFrames > 20) p.reset();
+        continue;
+      }
+
+      p.progress += dt * 0.55;
+
+      while (p.progress >= 1.0) {
+        p.progress -= 1.0;
+        p.pathIndex++;
+        if (p.pathIndex >= p.path.length - 1) {
+          p.status     = PacketStatus.delivered;
+          p.position   = p.path.last;
+          p.doneFrames = 0;
+          p.progress   = 0.0;
+          break;
+        }
+      }
+
+      if (p.status == PacketStatus.inTransit && p.pathIndex < p.path.length - 1) {
+        p.position = Offset.lerp(
+          p.path[p.pathIndex],
+          p.path[p.pathIndex + 1],
+          p.progress.clamp(0.0, 1.0),
+        )!;
+      }
+    }
   }
 
   Link? _linkBetween(String a, String b) =>

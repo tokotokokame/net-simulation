@@ -8,64 +8,42 @@ const Color kColorDropped    = Color(0xFFF44336); // red
 const Color kColorDelayed    = Color(0xFFFFC107); // amber
 
 Color packetColor(PacketStatus status) => switch (status) {
-      PacketStatus.inTransit => kColorForwarding,
-      PacketStatus.delivered => kColorSuccess,
-      PacketStatus.dropped   => kColorDropped,
-      PacketStatus.delayed   => kColorDelayed,
-    };
+  PacketStatus.inTransit => kColorForwarding,
+  PacketStatus.delivered => kColorSuccess,
+  PacketStatus.dropped   => kColorDropped,
+  PacketStatus.delayed   => kColorDelayed,
+};
 
+/// Multi-hop packet particle that traverses a full device-to-device path.
 class PacketParticle {
-  final String packetId;
-  final Offset sourcePosition;
-  final Offset destinationPosition;
-  final double radius;
+  final String         id;
+  final List<Offset>   path;
 
-  double progress; // 0.0 → 1.0
+  int          pathIndex  = 0;
+  double       progress   = 0.0;
+  int          doneFrames = 0;
   PacketStatus status;
-  double lingerMs; // ms since terminal state reached
+  Offset       position;
 
   PacketParticle({
-    required this.packetId,
-    required this.sourcePosition,
-    required this.destinationPosition,
-    this.radius = 5.0,
-    this.progress = 0.0,
+    required this.id,
+    required this.path,
+    required this.position,
     this.status = PacketStatus.inTransit,
-    this.lingerMs = 0.0,
   });
 
-  Color get color => packetColor(status);
-
-  /// Linearly interpolated position on the source → destination segment.
-  Offset get currentPosition => Offset.lerp(sourcePosition, destinationPosition, progress.clamp(0.0, 1.0))!;
-
-  bool get isTerminal => status == PacketStatus.delivered || status == PacketStatus.dropped;
-
-  /// Advance progress and linger timer. Returns true if the particle should be removed.
-  bool advance(double deltaMs, {double travelMs = 500.0, double lingerLimitMs = 800.0}) {
-    if (!isTerminal) {
-      progress = (progress + deltaMs / travelMs).clamp(0.0, 1.0);
-      if (progress >= 1.0 && status == PacketStatus.inTransit) {
-        status = PacketStatus.delivered;
-      }
-    } else {
-      lingerMs += deltaMs;
-      if (lingerMs >= lingerLimitMs) return true; // remove
-    }
-    return false;
+  /// Resets the particle to the beginning of its path for looped playback.
+  void reset() {
+    pathIndex  = 0;
+    progress   = 0.0;
+    doneFrames = 0;
+    status     = PacketStatus.inTransit;
+    position   = path.first;
   }
 
-  PacketParticle copyWith({
-    double? progress,
-    PacketStatus? status,
-    double? lingerMs,
-  }) => PacketParticle(
-        packetId: packetId,
-        sourcePosition: sourcePosition,
-        destinationPosition: destinationPosition,
-        radius: radius,
-        progress: progress ?? this.progress,
-        status: status ?? this.status,
-        lingerMs: lingerMs ?? this.lingerMs,
-      );
+  /// Current interpolated canvas position (used by TopologyPainter).
+  Offset get currentPosition => position;
+
+  Color  get color  => packetColor(status);
+  double get radius => 5.0;
 }

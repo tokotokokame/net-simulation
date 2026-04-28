@@ -1,34 +1,25 @@
 // lib/visualization/simulation_animator.dart
+// Particle animation is now driven by SimulationEngine._updateParticles.
+// This file is retained for API compatibility but is no longer active.
 import 'dart:developer';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/rendering.dart' show Offset;
 import '../models/packet.dart';
 import '../models/topology.dart';
 import 'packet_particle.dart';
-
-const int kMaxParticles = 2000;
-const double kTravelMs = 600.0;  // ms for a particle to traverse one link
-const double kLingerMs = 800.0;  // ms terminal particles remain visible
 
 class SimulationAnimator with ChangeNotifier {
   final TickerProvider vsync;
 
   Ticker? _ticker;
-  Duration _prev = Duration.zero;
-  final List<PacketParticle> _particles = [];
-  final Set<String> _knownIds = {};
 
   SimulationAnimator(this.vsync);
 
-  List<PacketParticle> get activeParticles => List.unmodifiable(_particles);
-
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  List<PacketParticle> get activeParticles => const [];
 
   void start() {
     _ticker ??= vsync.createTicker(_onTick);
     if (!_ticker!.isActive) {
-      _prev = Duration.zero;
       _ticker!.start();
       log('SimulationAnimator started', name: 'Animator');
     }
@@ -36,8 +27,6 @@ class SimulationAnimator with ChangeNotifier {
 
   void stop() {
     _ticker?.stop();
-    _particles.clear();
-    _knownIds.clear();
     notifyListeners();
     log('SimulationAnimator stopped', name: 'Animator');
   }
@@ -48,59 +37,11 @@ class SimulationAnimator with ChangeNotifier {
     super.dispose();
   }
 
-  // ── Sync with engine packets ───────────────────────────────────────────────
-
   void updateParticles(List<Packet> packets, Topology topology) {
-    // Build IP-to-device map for position lookup.
-    final ipMap = <String, dynamic>{};
-    for (final d in topology.devices) {
-      for (final iface in d.interfaces) { ipMap[iface.ip] = d; }
-    }
-    final devices = topology.devices;
-
-    for (final pkt in packets) {
-      if (_knownIds.contains(pkt.id)) {
-        final idx = _particles.indexWhere((p) => p.packetId == pkt.id);
-        if (idx >= 0 && !_particles[idx].isTerminal) {
-          _particles[idx].status = pkt.status;
-        }
-        continue;
-      }
-
-      // Match source/destination by IP, fallback to first/last device.
-      final src = (ipMap[pkt.sourceIp] as dynamic) ?? (devices.isNotEmpty ? devices.first : null);
-      final dst = (ipMap[pkt.destinationIp] as dynamic) ?? (devices.length > 1 ? devices.last : null);
-      if (src == null || dst == null) continue;
-
-      // Cap particle count
-      if (_particles.length >= kMaxParticles) {
-        final removeCount = _particles.length - kMaxParticles + 1;
-        _particles.removeRange(0, removeCount);
-        _knownIds.removeAll(_knownIds.take(removeCount).toList());
-      }
-
-      _particles.add(PacketParticle(
-        packetId: pkt.id,
-        sourcePosition: Offset(src.x, src.y),
-        destinationPosition: Offset(dst.x, dst.y),
-        status: pkt.status,
-      ));
-      _knownIds.add(pkt.id);
-    }
+    // No-op: particle management moved to SimulationEngine.
   }
 
-  // ── Ticker callback ───────────────────────────────────────────────────────
-
   void _onTick(Duration elapsed) {
-    final deltaMs = _prev == Duration.zero
-        ? 16.0
-        : (elapsed - _prev).inMicroseconds / 1000.0;
-    _prev = elapsed;
-
-    _particles.removeWhere(
-      (p) => p.advance(deltaMs, travelMs: kTravelMs, lingerLimitMs: kLingerMs),
-    );
-
     notifyListeners();
   }
 }

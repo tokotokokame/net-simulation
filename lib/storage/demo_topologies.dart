@@ -148,5 +148,87 @@ Topology get demoD5 {
   ]);
 }
 
-/// All five demo topologies in display order.
-List<Topology> get allDemoTopologies => [demoD1, demoD2, demoD3, demoD4, demoD5];
+// ── D6: 通信キャリア網（Telecommunications Network Architecture） ──────────────
+
+Topology get demoD6 {
+  final t = DateTime(2024, 1, 6);
+
+  // ── バックボーン ─────────────────────────────────────────────────────────────
+  final mpls   = _dev('demo-d6-mpls',   DeviceType.mplsCloud,            'MegaPath骨格網',    530,  80, [_iface('eth0', '10.0.0.1')]);
+  final inet   = _dev('demo-d6-inet',   DeviceType.internetCloud,        'Internet',           530, 200, [_iface('eth0', '10.0.0.2')]);
+  final popA   = _dev('demo-d6-popa',   DeviceType.router,               'Level3-Pops-A',      180, 120, [_iface('eth0', '10.0.0.3')]);
+  final popB   = _dev('demo-d6-popb',   DeviceType.router,               'Level3-Pops-B',      880, 120, [_iface('eth0', '10.0.0.4')]);
+
+  // ── 西拠点 ───────────────────────────────────────────────────────────────────
+  final rA     = _dev('demo-d6-ra',     DeviceType.router,               'Router-A',           180, 260, [_iface('eth0', '10.1.0.1')]);
+  final fwA    = _dev('demo-d6-fwa',    DeviceType.firewall,             'FW-A(西拠点)',        180, 380, [_iface('eth0', '10.1.0.2')]);
+  final media  = _dev('demo-d6-media',  DeviceType.server,               'メディアSV',          80, 500, [_iface('eth0', '10.1.1.10')]);
+  final backup = _dev('demo-d6-bk',     DeviceType.server,               'バックアップSV',      280, 500, [_iface('eth0', '10.1.1.11')]);
+  final swW    = _dev('demo-d6-sww',    DeviceType.switch_,              'SW-West',            180, 620, [_iface('eth0', '10.1.1.254')]);
+  final ctl    = _dev('demo-d6-ctl',    DeviceType.server,               'CTL-SV',              30, 760, [_iface('eth0', '10.1.2.10')]);
+  final mail   = _dev('demo-d6-mail',   DeviceType.server,               'メール-SV',           130, 760, [_iface('eth0', '10.1.2.11')]);
+  final video  = _dev('demo-d6-video',  DeviceType.server,               'ビデオ会議SV',        230, 760, [_iface('eth0', '10.1.2.12')]);
+  final ad     = _dev('demo-d6-ad',     DeviceType.activeDirectoryServer,'AD-SV',              330, 760, [_iface('eth0', '10.1.2.13')]);
+
+  // ── 東拠点 ───────────────────────────────────────────────────────────────────
+  final rB     = _dev('demo-d6-rb',     DeviceType.router,               'Router-B',           880, 260, [_iface('eth0', '10.2.0.1')]);
+  final fwB    = _dev('demo-d6-fwb',    DeviceType.firewall,             'FW-B(東拠点)',        880, 380, [_iface('eth0', '10.2.0.2')]);
+  final pr1    = _dev('demo-d6-pr1',    DeviceType.lteNetwork,           'PR1回線(WAN)',       1050, 380, [_iface('eth0', '10.2.0.10')]);
+  final rIsp   = _dev('demo-d6-risp',   DeviceType.router,               'Router-ISP',         880, 500, [_iface('eth0', '10.2.1.1')]);
+  final phone1 = _dev('demo-d6-ph1',    DeviceType.iotDevice,            'IP電話-1',            700, 640, [_iface('eth0', '10.2.2.10')]);
+  final phone2 = _dev('demo-d6-ph2',    DeviceType.iotDevice,            'IP電話-2',            800, 640, [_iface('eth0', '10.2.2.11')]);
+  final phone3 = _dev('demo-d6-ph3',    DeviceType.iotDevice,            'IP電話-3',            900, 640, [_iface('eth0', '10.2.2.12')]);
+  final softR  = _dev('demo-d6-soft',   DeviceType.server,               'Softswitch-R',      1000, 640, [_iface('eth0', '10.2.2.20')]);
+  final pstn   = _dev('demo-d6-pstn',   DeviceType.internetCloud,        'PSTN',               880, 760, [_iface('eth0', '10.2.3.1')]);
+  final co1    = _dev('demo-d6-co1',    DeviceType.switch_,              'CO-Switch-1',        700, 760, [_iface('eth0', '10.2.3.10')]);
+  final co2    = _dev('demo-d6-co2',    DeviceType.switch_,              'CO-Switch-2',       1000, 760, [_iface('eth0', '10.2.3.11')]);
+
+  // ── 拠点間VPN ─────────────────────────────────────────────────────────────────
+  final vpn    = _dev('demo-d6-vpn',    DeviceType.vpnGateway,           'VPN-GW',             530, 400, [_iface('eth0', '10.10.0.1')]);
+
+  return _topo('demo-d6', '[Demo] 通信キャリア網構成', t, [
+    mpls, inet, popA, popB,
+    rA, fwA, media, backup, swW, ctl, mail, video, ad,
+    rB, fwB, pr1, rIsp, phone1, phone2, phone3, softR, pstn, co1, co2,
+    vpn,
+  ], [
+    // ── バックボーン ──────────────────────────────────
+    _link('demo-d6-l01', popA.id,  mpls.id,  bw: 10000000000),
+    _link('demo-d6-l02', popB.id,  mpls.id,  bw: 10000000000),
+    _link('demo-d6-l03', mpls.id,  inet.id,  bw: 10000000000),
+    _link('demo-d6-l04', popA.id,  inet.id,  bw: 1000000000),
+    _link('demo-d6-l05', popB.id,  inet.id,  bw: 1000000000),
+
+    // ── 西拠点 ────────────────────────────────────────
+    _link('demo-d6-l06', popA.id,  rA.id,    bw: 1000000000),
+    _link('demo-d6-l07', rA.id,    fwA.id),
+    _link('demo-d6-l08', fwA.id,   media.id),
+    _link('demo-d6-l09', fwA.id,   backup.id),
+    _link('demo-d6-l10', fwA.id,   swW.id),
+    _link('demo-d6-l11', media.id, backup.id),
+    _link('demo-d6-l12', swW.id,   ctl.id),
+    _link('demo-d6-l13', swW.id,   mail.id),
+    _link('demo-d6-l14', swW.id,   video.id),
+    _link('demo-d6-l15', swW.id,   ad.id),
+
+    // ── 東拠点 ────────────────────────────────────────
+    _link('demo-d6-l16', popB.id,  rB.id,    bw: 1000000000),
+    _link('demo-d6-l17', rB.id,    fwB.id),
+    _link('demo-d6-l18', fwB.id,   pr1.id),
+    _link('demo-d6-l19', fwB.id,   rIsp.id),
+    _link('demo-d6-l20', rIsp.id,  phone1.id),
+    _link('demo-d6-l21', rIsp.id,  phone2.id),
+    _link('demo-d6-l22', rIsp.id,  phone3.id),
+    _link('demo-d6-l23', rIsp.id,  softR.id),
+    _link('demo-d6-l24', rIsp.id,  pstn.id),
+    _link('demo-d6-l25', pstn.id,  co1.id),
+    _link('demo-d6-l26', pstn.id,  co2.id),
+
+    // ── 拠点間VPN（西FW ↔ VPN-GW ↔ 東FW） ────────────
+    _link('demo-d6-l27', fwA.id,   vpn.id),
+    _link('demo-d6-l28', vpn.id,   fwB.id),
+  ]);
+}
+
+/// All demo topologies in display order.
+List<Topology> get allDemoTopologies => [demoD1, demoD2, demoD3, demoD4, demoD5, demoD6];

@@ -11,8 +11,6 @@ import '../../models/device.dart';
 import '../../models/link.dart';
 import '../../models/network_interface.dart';
 import '../../simulation/simulation_engine.dart';
-import '../../visualization/packet_particle.dart' show PacketParticle;
-import '../../visualization/simulation_animator.dart';
 import '../../visualization/topology_painter.dart';
 import '../widgets/connection_dialog.dart'; import '../widgets/device_palette.dart';
 import '../widgets/failure_menu.dart'; import '../widgets/paywall_dialog.dart';
@@ -37,20 +35,15 @@ class TopologyEditorScreen extends ConsumerStatefulWidget {
 class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     with TickerProviderStateMixin {
   final _txCtrl = TransformationController();
-  late final SimulationAnimator _animator;
-  List<PacketParticle> _particles = [];
   String? _draggingDeviceId;
 
   @override
   void initState() {
     super.initState();
-    _animator = SimulationAnimator(this)..addListener(_onAnimFrame);
   }
 
-  void _onAnimFrame() => setState(() => _particles = List.of(_animator.activeParticles));
-
   @override
-  void dispose() { _animator.dispose(); _txCtrl.dispose(); super.dispose(); }
+  void dispose() { _txCtrl.dispose(); super.dispose(); }
 
   Device? _hitTest(Offset local) {
     final c = _toCanvas(local, _txCtrl.value);
@@ -121,7 +114,6 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     }
 
     engine.start(result.prepared);
-    _animator.start();
   }
 
   // ── Long-press: context menu or link menu ─────────────────────────────────────
@@ -309,25 +301,32 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
 
   // ── Zoom controls ─────────────────────────────────────────────────────────
 
+  static const double _paletteHeight = 140.0;
+
   void _zoom(double factor) {
     final m = _txCtrl.value.clone();
-    final s = m.storage[0];
-    final ns = (s * factor).clamp(0.3, 4.0);
-    final sf = ns / s;
+    final currentScale = m.getMaxScaleOnAxis();
+    final newScale = (currentScale * factor).clamp(0.2, 5.0);
+    final sf = newScale / currentScale;
 
     final size = MediaQuery.of(context).size;
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final newTx = cx * (1 - sf) + sf * m.storage[12];
-    final newTy = cy * (1 - sf) + sf * m.storage[13];
+    final tx = m.entry(0, 3);
+    final ty = m.entry(1, 3);
+    final newTx = cx * (1 - sf) + sf * tx;
+    final newTy = cy * (1 - sf) + sf * ty;
 
     final target = Matrix4.identity();
-    target.storage[0]  = ns;
-    target.storage[5]  = ns;
+    target.storage[0]  = newScale;
+    target.storage[5]  = newScale;
+    target.storage[10] = newScale;
     target.storage[12] = newTx;
     target.storage[13] = newTy;
     _animateTransform(target);
   }
+
+  void _resetZoom() => _animateTransform(Matrix4.identity());
 
   void _animateTransform(Matrix4 target) {
     final begin = _txCtrl.value.clone();
@@ -339,17 +338,40 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
   }
 
   Widget _buildZoomControls() {
-    return Positioned(
-      left: 16,
-      bottom: 16,
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        _ZoomButton(icon: Icons.add, tooltip: 'ズームイン',  onTap: () => _zoom(1.25)),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ZoomButton(icon: Icons.add,        tooltip: 'ズームイン',   onTap: () => _zoom(1.25)),
         const SizedBox(height: 4),
-        _ZoomButton(icon: Icons.remove, tooltip: 'ズームアウト', onTap: () => _zoom(0.8)),
+        _ZoomButton(icon: Icons.remove,     tooltip: 'ズームアウト', onTap: () => _zoom(0.8)),
         const SizedBox(height: 4),
-        _ZoomButton(icon: Icons.fit_screen, tooltip: 'リセット',
-            onTap: () => _animateTransform(Matrix4.identity())),
-      ]),
+        _ZoomButton(icon: Icons.fit_screen, tooltip: 'リセット',     onTap: _resetZoom),
+      ],
+    );
+  }
+
+  Widget _buildPalette() {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return SafeArea(
+      minimum: EdgeInsets.only(bottom: bottomPad),
+      child: SizedBox(
+        height: _paletteHeight,
+        child: DevicePalette(onDeviceSelected: _addAtCenter),
+      ),
+    );
+  }
+
+  Widget _buildSimFab(bool isRunning) {
+    return FloatingActionButton(
+      backgroundColor: isRunning ? Colors.red[700] : Colors.blue[700],
+      onPressed: () {
+        if (isRunning) {
+          ref.read(simulationEngineProvider.notifier).pause();
+        } else {
+          _startSimulation();
+        }
+      },
+      child: Icon(isRunning ? Icons.stop : Icons.play_arrow, color: Colors.white, size: 30),
     );
   }
 
@@ -361,16 +383,9 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     final selected = ref.watch(selectedDeviceIdProvider);
     final engine = ref.watch(simulationEngineProvider);
     final isRunning = engine.simState == SimulationState.running;
+    final particles = engine.particles;
     final authState = ref.watch(userAuthProvider);
     final timerSecs = ref.watch(demoRemainingProvider).valueOrNull;
-    final bottomPad = MediaQuery.of(context).padding.bottom;
-
-    // Sync animator with engine packets every tick.
-    ref.listen(simulationEngineProvider, (_, next) {
-      if (next.simState == SimulationState.running && next.activePackets.isNotEmpty) {
-        _animator.updateParticles(next.activePackets, ref.read(topologyProvider));
-      }
-    });
 
     ref.listen(demoRemainingProvider, (_, next) {
       if (next.valueOrNull == 0) {
@@ -401,79 +416,80 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
           IconButton(icon: const Icon(Icons.settings),             tooltip: '設定',          onPressed: () => SettingsSheet.show(context)),
         ],
       ),
-      body: Stack(children: [
-        DragTarget<DeviceType>(
-          onAcceptWithDetails: (details) {
-            final box = context.findRenderObject()! as RenderBox;
-            final local = box.globalToLocal(details.offset);
-            final inv = Matrix4.inverted(_txCtrl.value);
-            final s = inv.storage;
-            final canvas = Offset(
-              s[0] * local.dx + s[4] * local.dy + s[12],
-              s[1] * local.dx + s[5] * local.dy + s[13],
-            );
-            _addAtPosition(details.data, canvas);
-          },
-          builder: (_, __, ___) => GestureDetector(
-            onTapUp: (e) => _onTap(e.localPosition),
-            onDoubleTapDown: (e) {
-              final hit = _hitTest(e.localPosition);
-              if (hit != null) {
-                if (isCloudDevice(hit.type)) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('このデバイスは設定できません（クラウド/キャリアノード）'),
-                    duration: Duration(seconds: 2),
-                  ));
+      body: Stack(
+        children: [
+          // ── 1. キャンバス（最背面） ────────────────────────
+          DragTarget<DeviceType>(
+            onAcceptWithDetails: (details) {
+              final box = context.findRenderObject()! as RenderBox;
+              final local = box.globalToLocal(details.offset);
+              final inv = Matrix4.inverted(_txCtrl.value);
+              final s = inv.storage;
+              final canvas = Offset(
+                s[0] * local.dx + s[4] * local.dy + s[12],
+                s[1] * local.dx + s[5] * local.dy + s[13],
+              );
+              _addAtPosition(details.data, canvas);
+            },
+            builder: (_, __, ___) => GestureDetector(
+              onTapUp: (e) => _onTap(e.localPosition),
+              onDoubleTapDown: (e) {
+                final hit = _hitTest(e.localPosition);
+                if (hit != null) {
+                  if (isCloudDevice(hit.type)) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('このデバイスは設定できません（クラウド/キャリアノード）'),
+                      duration: Duration(seconds: 2),
+                    ));
+                    return;
+                  }
+                  context.push('/config/${hit.id}');
                   return;
                 }
-                context.push('/config/${hit.id}');
-                return;
-              }
-              _onDoubleTapLink(e.localPosition);
-            },
-            onLongPressStart: _onLongPressStart,
-            onPanUpdate: _onPanUpdate,
-            onPanEnd:    _onPanEnd,
-            child: InteractiveViewer(
-              transformationController: _txCtrl,
-              panEnabled: false,
-              minScale: 0.3, maxScale: 4.0, constrained: false,
-              child: SizedBox(width: 3000, height: 3000,
+                _onDoubleTapLink(e.localPosition);
+              },
+              onLongPressStart: _onLongPressStart,
+              onPanUpdate: _onPanUpdate,
+              onPanEnd:    _onPanEnd,
+              child: InteractiveViewer(
+                transformationController: _txCtrl,
+                panEnabled: false,
+                minScale: 0.2, maxScale: 5.0, constrained: false,
+                child: SizedBox(
+                  width: 3000, height: 3000,
                   child: CustomPaint(
-                      painter: TopologyPainter(
-                          topology: topo,
-                          selectedDeviceId: selected,
-                          particles: _particles))),
+                    painter: TopologyPainter(
+                      topology: topo,
+                      selectedDeviceId: selected,
+                      particles: particles,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-        // Zoom buttons
-        _buildZoomControls(),
-      ]),
-      bottomSheet: SafeArea(
-        minimum: EdgeInsets.only(bottom: bottomPad),
-        child: SizedBox(
-          height: 130,
-          child: DevicePalette(onDeviceSelected: _addAtCenter),
-        ),
+
+          // ── 2. デバイスパレット（下部） ────────────────────
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _buildPalette(),
+          ),
+
+          // ── 3. ズームボタン（左下・パレットの上） ──────────
+          Positioned(
+            left: 16,
+            bottom: _paletteHeight + 16,
+            child: _buildZoomControls(),
+          ),
+
+          // ── 4. 再生/停止FAB（右下・パレットの上） ──────────
+          Positioned(
+            right: 16,
+            bottom: _paletteHeight + 16,
+            child: _buildSimFab(isRunning),
+          ),
+        ],
       ),
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: 130 + bottomPad + 8),
-        child: FloatingActionButton(
-          backgroundColor: isRunning ? Colors.red[700] : Colors.blue[700],
-          onPressed: () {
-            if (isRunning) {
-              ref.read(simulationEngineProvider.notifier).pause();
-              _animator.stop();
-            } else {
-              _startSimulation();
-            }
-          },
-          child: Icon(isRunning ? Icons.stop : Icons.play_arrow,
-              color: Colors.white, size: 30),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
