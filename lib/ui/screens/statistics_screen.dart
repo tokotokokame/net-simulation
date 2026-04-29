@@ -33,16 +33,18 @@ class StatisticsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: total == 0
-          ? const Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.bar_chart, size: 48, color: Colors.white24),
-                SizedBox(height: 12),
-                Text('シミュレーションを開始するとデータが表示されます',
-                    style: TextStyle(color: Colors.white38, fontSize: 13)),
-              ]),
-            )
-          : ListView(
+      body: SafeArea(
+        top: false,
+        child: total == 0
+            ? const Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.bar_chart, size: 48, color: Colors.white24),
+                  SizedBox(height: 12),
+                  Text('シミュレーションを開始するとデータが表示されます',
+                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                ]),
+              )
+            : ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _StatusChip(state: engine.simState),
@@ -120,6 +122,7 @@ class StatisticsScreen extends ConsumerWidget {
               )),
         ],
       ),
+      ),  // SafeArea
     );
   }
 }

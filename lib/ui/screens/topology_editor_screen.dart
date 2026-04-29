@@ -65,8 +65,9 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
 
   // ── Button layout ─────────────────────────────────────────────────────────
   static const double _kBtnMargin = 12.0;
+  // handle(20) + tabs(34) + items(70) = 124; device_palette handles safeArea internally
   double get _kPaletteH =>
-      200.0 + MediaQuery.of(context).padding.bottom;
+      124.0 + MediaQuery.of(context).padding.bottom;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   @override
@@ -423,6 +424,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
       backgroundColor: const Color(0xFF1A2332),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      useSafeArea: true,
       builder: (_) => _LinkStateMenu(
         simLink: sl,
         onStateChanged: (newState) {
@@ -455,6 +457,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
       backgroundColor: const Color(0xFF1A2332),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      useSafeArea: true,
       builder: (_) => _DeviceCrashMenu(
         simDevice: sd,
         onAction: (action, rebootSec) {
@@ -761,10 +764,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
   }
 
   Widget _buildPalette() {
-    return SizedBox(
-      height: _kPaletteH,
-      child: DevicePalette(onDeviceSelected: _addAtCenter),
-    );
+    return DevicePalette(onDeviceSelected: _addAtCenter);
   }
 
   Widget _buildSimFab() {
