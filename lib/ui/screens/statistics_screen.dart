@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/attack_packet.dart';
+import '../../models/simulation_statistics.dart';
 import '../../simulation/attack_event.dart';
 import '../../simulation/simulation_engine.dart';
 
@@ -13,10 +14,8 @@ class StatisticsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final engine = ref.watch(simulationEngineProvider);
-    final stats = engine.stats;
-    final total = stats.totalPackets;
-    final successRate = total == 0 ? 0.0 : stats.deliveredPackets / total * 100;
-    final lossRate = total == 0 ? 0.0 : stats.droppedPackets / total * 100;
+    final stats  = ref.watch(statisticsNotifierProvider);
+    final total  = stats.totalPackets;
 
     return Scaffold(
       appBar: AppBar(
@@ -24,11 +23,26 @@ class StatisticsScreen extends ConsumerWidget {
         actions: [
           IconButton(icon: const Icon(Icons.article_outlined), tooltip: 'Syslog',
               onPressed: () => context.push('/syslog')),
-          IconButton(icon: const Icon(Icons.refresh), tooltip: 'クリア',
-              onPressed: () => ref.read(simulationEngineProvider.notifier).stop()),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'クリア',
+            onPressed: () {
+              ref.read(statisticsNotifierProvider.notifier).reset();
+              ref.read(simulationEngineProvider.notifier).stop();
+            },
+          ),
         ],
       ),
-      body: ListView(
+      body: total == 0
+          ? const Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.bar_chart, size: 48, color: Colors.white24),
+                SizedBox(height: 12),
+                Text('シミュレーションを開始するとデータが表示されます',
+                    style: TextStyle(color: Colors.white38, fontSize: 13)),
+              ]),
+            )
+          : ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _StatusChip(state: engine.simState),
@@ -38,10 +52,10 @@ class StatisticsScreen extends ConsumerWidget {
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.6,
             children: [
-              _MetricCard('パケット成功率', '${successRate.toStringAsFixed(1)}%', Icons.check_circle_outline, Colors.green),
+              _MetricCard('パケット成功率', '${stats.successRate.toStringAsFixed(1)}%', Icons.check_circle_outline, Colors.green),
               _MetricCard('平均レイテンシ', '${stats.avgLatencyMs.toStringAsFixed(1)} ms', Icons.timer_outlined, Colors.blue),
-              _MetricCard('帯域幅使用率', '${(stats.bandwidthUtilization * 100).toStringAsFixed(1)}%', Icons.show_chart, Colors.orange),
-              _MetricCard('パケットロス率', '${lossRate.toStringAsFixed(1)}%', Icons.error_outline, Colors.red),
+              _MetricCard('合計パケット数', '$total', Icons.show_chart, Colors.orange),
+              _MetricCard('パケットロス率', '${stats.lossRate.toStringAsFixed(1)}%', Icons.error_outline, Colors.red),
             ],
           ),
           const SizedBox(height: 16),

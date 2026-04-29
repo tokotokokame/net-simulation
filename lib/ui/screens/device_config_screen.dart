@@ -162,8 +162,37 @@ class DeviceConfigScreen extends ConsumerWidget {
     final tabs  = specs.map((s) => s.tab).toList();
     final views = specs.map((s) => s.view).toList();
 
-    // Device type badge color.
     final badgeColor = deviceColor(device.type);
+
+    // G4: rename dialog.
+    Future<void> renameDevice() async {
+      final ctrl = TextEditingController(text: device.name);
+      final newName = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('デバイス名を変更'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(
+                labelText: '名前', border: OutlineInputBorder()),
+            onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('キャンセル')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                child: const Text('保存')),
+          ],
+        ),
+      );
+      ctrl.dispose();
+      if (newName == null || newName.isEmpty) return;
+      ref.read(topologyProvider.notifier).updateDevice(
+          device.copyWith(name: newName));
+    }
 
     return DefaultTabController(
       length: tabs.length,
@@ -173,7 +202,14 @@ class DeviceConfigScreen extends ConsumerWidget {
             Flexible(child: Text(device.name,
                 style: const TextStyle(fontSize: 16),
                 overflow: TextOverflow.ellipsis)),
-            const SizedBox(width: 8),
+            // G4: tap to rename
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.white54),
+              tooltip: '名前を変更',
+              onPressed: renameDevice,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(

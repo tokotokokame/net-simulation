@@ -21,6 +21,8 @@ import '../widgets/paywall_dialog.dart';
 import '../widgets/settings_sheet.dart';
 import 'device_config_screen.dart';
 import 'topology_state.dart';
+import '../../models/simulation_statistics.dart';
+import '../../simulation/simulation_engine.dart';
 import '../../storage/topology_storage.dart';
 
 const _uuid = Uuid();
@@ -59,9 +61,10 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
   int _pairIndex = 0;
 
   // ── Button layout ─────────────────────────────────────────────────────────
-  // Palette = drag handle(~20) + tabs(34) + device row(70) + safe-area ≈ 160px
-  static const double _kPaletteH  = 160.0;
-  static const double _kBtnMargin =  12.0;
+  static const double _kBtnMargin = 12.0;
+  // TabBar(48) + icons(88) + labels(24) + padding(40) + SafeArea bottom
+  double get _kPaletteH =>
+      200.0 + MediaQuery.of(context).padding.bottom;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   @override
@@ -120,6 +123,8 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
           if (pkt.dwellTimer <= 0) {
             if (pkt.segIndex >= pkt.path.length - 2) {
               pkt.status = PktStatus.success;
+              ref.read(statisticsNotifierProvider.notifier)
+                  .recordPacket(success: true, latencyMs: pkt.elapsedMs);
             } else {
               pkt.segIndex++;
               pkt.progress = 0.0;
@@ -164,13 +169,13 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
 
     _packets.clear();
     _pairQueue.clear();
-    _pairIndex  = 0;
-    _spawnTimer = _kSpawnInterval; // fire first packet immediately
+    _pairIndex   = 0;
+    _spawnTimer  = _kSpawnInterval;
     _lastElapsed = Duration.zero;
 
-    // Build (src, dst) pairs from active links (both directions).
+    // G1: ALL links are used for pair building (including cloud nodes).
+    // isActive=false is a visual state only; routing traverses all links.
     for (final link in topology.links) {
-      if (!link.isActive) continue; // F3: skip blocked links
       final a = topology.devices.where((d) => d.id == link.deviceAId).firstOrNull;
       final b = topology.devices.where((d) => d.id == link.deviceBId).firstOrNull;
       if (a == null || b == null) continue;
@@ -179,11 +184,23 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     }
     _pairQueue.shuffle();
 
+    // G3: Reset local stats, then start engine for IP auto-assign.
+    ref.read(statisticsNotifierProvider.notifier).reset();
+    final engine = ref.read(simulationEngineProvider.notifier);
+    final result = engine.validateAndPrepare(topology);
+    if (!result.hasErrors) {
+      if (result.warnings.isNotEmpty) {
+        ref.read(topologyProvider.notifier).load(result.prepared);
+      }
+      engine.start(result.prepared);
+    }
+
     setState(() => _simRunning = true);
     developer.log('[Sim] start: ${_pairQueue.length} pairs', name: 'Editor');
   }
 
   void _stopSimulation() {
+    ref.read(simulationEngineProvider.notifier).stop(); // G3
     setState(() {
       _simRunning  = false;
       _packets.clear();
@@ -204,6 +221,7 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     final path = _computePath(pair.$1, pair.$2, topology);
     if (path.length < 2) {
       developer.log('[Sim] No path: ${pair.$1} → ${pair.$2}', name: 'Editor');
+      ref.read(statisticsNotifierProvider.notifier).recordPacket(success: false);
       return;
     }
 
@@ -220,11 +238,11 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
     developer.log('[Sim] spawn: ${path.length} hops', name: 'Editor');
   }
 
-  // BFS — returns device-ID path, skipping inactive (blocked) links (F3).
+  // BFS — returns device-ID path through the topology.
+  // G1: All links are traversable (isActive=false is visual only).
   List<String> _computePath(String src, String dst, Topology topology) {
     final adj = <String, List<String>>{};
     for (final link in topology.links) {
-      if (!link.isActive) continue; // F3: blocked links excluded
       adj.putIfAbsent(link.deviceAId, () => []).add(link.deviceBId);
       adj.putIfAbsent(link.deviceBId, () => []).add(link.deviceAId);
     }
@@ -526,13 +544,9 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
   }
 
   Widget _buildPalette() {
-    final bottomPad = MediaQuery.of(context).padding.bottom;
-    return SafeArea(
-      minimum: EdgeInsets.only(bottom: bottomPad),
-      child: SizedBox(
-        height: _kPaletteH,
-        child: DevicePalette(onDeviceSelected: _addAtCenter),
-      ),
+    return SizedBox(
+      height: _kPaletteH,
+      child: DevicePalette(onDeviceSelected: _addAtCenter),
     );
   }
 

@@ -81,6 +81,14 @@ class TopologyNotifier extends StateNotifier<Topology> {
     );
   }
 
+  void renameDevice({required String deviceId, required String newName}) {
+    state = state.copyWith(
+      devices: state.devices.map((d) =>
+          d.id == deviceId ? d.copyWith(name: newName) : d).toList(),
+    );
+    log('renameDevice: $deviceId → $newName', name: 'Topology');
+  }
+
   void rename(String name) => state = state.copyWith(name: name);
 
   void load(Topology t) => state = t;

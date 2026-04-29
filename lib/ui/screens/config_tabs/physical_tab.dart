@@ -1,4 +1,5 @@
 // lib/ui/screens/config_tabs/physical_tab.dart
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,12 +72,51 @@ _PhysicalCaps _caps(DeviceType t) => switch (t) {
   _ => const _PhysicalCaps(showMac: false, showBandwidth: false),
 };
 
-class PhysicalTab extends ConsumerWidget {
+class PhysicalTab extends ConsumerStatefulWidget {
   final Device device;
   const PhysicalTab({super.key, required this.device});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PhysicalTab> createState() => _PhysicalTabState();
+}
+
+class _PhysicalTabState extends ConsumerState<PhysicalTab> {
+  late final TextEditingController _nameCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.device.name);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _saveName() {
+    final newName = _nameCtrl.text.trim();
+    if (newName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('デバイス名を入力してください')));
+      return;
+    }
+    ref.read(topologyProvider.notifier)
+        .renameDevice(deviceId: widget.device.id, newName: newName);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('✓ デバイス名を保存しました'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1)));
+    developer.log('[Config] renamed ${widget.device.id} → $newName');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final device = widget.device;
+    final ifaces = device.interfaces;
+    final caps   = _caps(device.type);
+
     void addInterface() {
       final n = device.interfaces.length;
       ref.read(topologyProvider.notifier).updateInterface(device.id, n,
@@ -88,37 +128,78 @@ class PhysicalTab extends ConsumerWidget {
       ref.read(topologyProvider.notifier).removeInterface(device.id, index);
     }
 
-    final ifaces = device.interfaces;
-    final caps   = _caps(device.type);
+    // ── Name field card (all device types) ────────────────────────────────
+    final nameCard = Card(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextFormField(
+            controller: _nameCtrl,
+            decoration: InputDecoration(
+              labelText: 'デバイス名',
+              hintText: 'Router-1',
+              prefixIcon: const Icon(Icons.label_outline, size: 18),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            onFieldSubmitted: (_) => _saveName(),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+                onPressed: _saveName, child: const Text('名前を保存')),
+          ),
+        ]),
+      ),
+    );
 
     if (ifaces.isEmpty) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('インターフェースがありません', style: TextStyle(color: Colors.grey)),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          nameCard,
           const SizedBox(height: 16),
-          if (caps.canAddInterface)
-            FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('eth0 を追加'),
-              onPressed: addInterface,
-            ),
-        ]),
+          Expanded(child: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('インターフェースがありません',
+                  style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              if (caps.canAddInterface)
+                FilledButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('eth0 を追加'),
+                  onPressed: addInterface,
+                ),
+            ]),
+          )),
+        ],
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-      children: ifaces.asMap().entries.map((e) => _IfaceCard(
-        device: device,
-        iface: e.value,
-        index: e.key,
-        caps: caps,
-        isLast: e.key == ifaces.length - 1,
-        onChanged: (updated) => ref.read(topologyProvider.notifier)
-            .updateInterface(device.id, e.key, updated),
-        onAdd: caps.canAddInterface ? addInterface : null,
-        onDelete: () => removeInterface(e.key),
-      )).toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        nameCard,
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+            children: ifaces.asMap().entries.map((e) => _IfaceCard(
+              device: device,
+              iface: e.value,
+              index: e.key,
+              caps: caps,
+              isLast: e.key == ifaces.length - 1,
+              onChanged: (updated) => ref.read(topologyProvider.notifier)
+                  .updateInterface(device.id, e.key, updated),
+              onAdd: caps.canAddInterface ? addInterface : null,
+              onDelete: () => removeInterface(e.key),
+            )).toList(),
+          ),
+        ),
+      ],
     );
   }
 }

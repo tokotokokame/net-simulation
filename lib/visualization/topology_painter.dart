@@ -19,6 +19,9 @@ class Pkt {
   PktStatus status     = PktStatus.moving;
   Offset    position;
 
+  final Stopwatch _sw = Stopwatch()..start();
+  int get elapsedMs => _sw.elapsedMilliseconds;
+
   static const double kDoneDuration = 0.5; // seconds to show before removal
 
   Offset get currentNode => path[segIndex];
