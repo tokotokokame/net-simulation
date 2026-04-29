@@ -380,24 +380,64 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
 
   // ── Particle management ───────────────────────────────────────────────────
 
+  // ── Packet-trace spawn ────────────────────────────────────────────────────
+
   void _spawnParticlesForTopology(Topology topology) {
     _particles.clear();
-    int idx = 0;
-    for (final link in topology.links) {
-      if (!link.isActive) continue;
-      final a = topology.devices.where((d) => d.id == link.deviceAId).firstOrNull;
-      final b = topology.devices.where((d) => d.id == link.deviceBId).firstOrNull;
-      if (a == null || b == null) continue;
+    if (topology.devices.length < 2) return;
 
-      final pathAB = _routingEngine.shortestPath(a.id, b.id, topology);
-      log('[Engine] ${a.name}→${b.name}: ${pathAB.length} hops', name: 'Engine');
-      if (pathAB.length >= 2) _spawnParticle('p${idx++}', pathAB, topology);
+    const endpointTypes = {
+      DeviceType.pc, DeviceType.laptop, DeviceType.server, DeviceType.iotDevice,
+    };
+    final endpoints = topology.devices
+        .where((d) => endpointTypes.contains(d.type))
+        .toList();
 
-      final pathBA = _routingEngine.shortestPath(b.id, a.id, topology);
-      log('[Engine] ${b.name}→${a.name}: ${pathBA.length} hops', name: 'Engine');
-      if (pathBA.length >= 2) _spawnParticle('p${idx++}', pathBA, topology);
+    // Build up to 3 meaningful src→dst pairs (prefer endpoints).
+    final pairs = <(Device, Device)>[];
+    final candidates = endpoints.length >= 2 ? endpoints : topology.devices;
+    for (int i = 0; i < candidates.length && pairs.length < 3; i++) {
+      for (int j = i + 1; j < candidates.length && pairs.length < 3; j++) {
+        pairs.add((candidates[i], candidates[j]));
+      }
     }
-    log('[Engine] ${_particles.length} particles spawned', name: 'Engine');
+    if (pairs.isEmpty) {
+      pairs.add((topology.devices.first, topology.devices.last));
+    }
+
+    int idx = 0;
+    for (final (src, dst) in pairs) {
+      final pathIds = _routingEngine.shortestPath(src.id, dst.id, topology);
+      if (pathIds.length < 2) continue;
+
+      // F3: skip paths that cross any blocked (inactive) link.
+      bool hasBlocked = false;
+      for (int i = 0; i < pathIds.length - 1 && !hasBlocked; i++) {
+        hasBlocked = !topology.links.any((l) =>
+            l.isActive &&
+            ((l.deviceAId == pathIds[i]     && l.deviceBId == pathIds[i + 1]) ||
+             (l.deviceAId == pathIds[i + 1] && l.deviceBId == pathIds[i])));
+      }
+      if (hasBlocked) continue;
+
+      _spawnParticle('p${idx++}', pathIds, topology);
+      log('[Engine] Trace: ${src.name}→${dst.name} (${pathIds.length} hops)', name: 'Engine');
+    }
+
+    // Fallback: one particle per active link (keeps animation alive for
+    // topologies with only infrastructure nodes and no endpoint pairs).
+    if (_particles.isEmpty) {
+      for (final link in topology.links) {
+        if (!link.isActive) continue;
+        final a = topology.devices.where((d) => d.id == link.deviceAId).firstOrNull;
+        final b = topology.devices.where((d) => d.id == link.deviceBId).firstOrNull;
+        if (a == null || b == null) continue;
+        _spawnParticle('p${idx++}', [a.id, b.id], topology);
+        if (_particles.length >= 4) break;
+      }
+    }
+
+    log('[Engine] ${_particles.length} trace particles spawned', name: 'Engine');
   }
 
   void _spawnParticle(String id, List<String> deviceIds, Topology topology) {
@@ -411,6 +451,7 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
       id: id,
       path: positions,
       position: positions.first,
+      deviceIds: deviceIds,
     ));
   }
 
@@ -422,33 +463,63 @@ class SimulationEngine extends StateNotifier<SimulationEngineState> {
         if (p.doneFrames > 20) p.reset();
         continue;
       }
-
       if (p.status == PacketStatus.dropped) {
         p.doneFrames++;
         if (p.doneFrames > 20) p.reset();
         continue;
       }
 
+      // Pause at intermediate node (orange glow).
+      if (p.isAtNode) {
+        p.nodeFrames++;
+        if (p.nodeFrames >= PacketParticle.kNodePauseDuration) {
+          p.isAtNode   = false;
+          p.nodeFrames = 0;
+        }
+        continue;
+      }
+
       p.progress += dt * 0.55;
 
-      while (p.progress >= 1.0) {
-        p.progress -= 1.0;
+      if (p.progress >= 1.0) {
+        p.progress = 0.0;
         p.pathIndex++;
+
         if (p.pathIndex >= p.path.length - 1) {
+          // Reached destination → green pulse.
           p.status     = PacketStatus.delivered;
           p.position   = p.path.last;
           p.doneFrames = 0;
-          p.progress   = 0.0;
-          break;
+          continue;
         }
-      }
 
-      if (p.status == PacketStatus.inTransit && p.pathIndex < p.path.length - 1) {
-        p.position = Offset.lerp(
-          p.path[p.pathIndex],
-          p.path[p.pathIndex + 1],
-          p.progress.clamp(0.0, 1.0),
-        )!;
+        // F3: check if the next link is still active before pausing at node.
+        if (p.deviceIds.length > p.pathIndex + 1 && _topology != null) {
+          final nextActive = _topology!.links.any((l) =>
+              l.isActive &&
+              ((l.deviceAId == p.deviceIds[p.pathIndex]     && l.deviceBId == p.deviceIds[p.pathIndex + 1]) ||
+               (l.deviceAId == p.deviceIds[p.pathIndex + 1] && l.deviceBId == p.deviceIds[p.pathIndex])));
+          if (!nextActive) {
+            // Next link is blocked → drop here with red flash.
+            p.status     = PacketStatus.dropped;
+            p.position   = p.path[p.pathIndex];
+            p.doneFrames = 0;
+            continue;
+          }
+        }
+
+        // Pause at this intermediate node (orange glow).
+        p.position   = p.path[p.pathIndex];
+        p.isAtNode   = true;
+        p.nodeFrames = 0;
+      } else {
+        if (p.pathIndex < p.path.length - 1) {
+          p.position = Offset.lerp(
+            p.path[p.pathIndex],
+            p.path[p.pathIndex + 1],
+            p.progress.clamp(0.0, 1.0),
+          )!;
+        }
       }
     }
   }
