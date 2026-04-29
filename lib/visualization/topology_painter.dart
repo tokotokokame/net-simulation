@@ -6,39 +6,88 @@ import '../models/link.dart';
 import '../models/topology.dart';
 import 'device_style.dart';
 
-// ── Shared packet types (consumed by topology_editor_screen.dart) ─────────────
+// ── Packet state ──────────────────────────────────────────────────────────────
 
 enum PktStatus { moving, dwelling, success, blocked }
 
 class Pkt {
   final List<Offset> path;
+  final List<String> deviceIds; // device-ID path — for blocked-link/device detection
   int       segIndex   = 0;
   double    progress   = 0.0;
   double    dwellTimer = 0.0;
-  double    doneTimer  = 0.0; // counts up after success / blocked
+  double    doneTimer  = 0.0;
   PktStatus status     = PktStatus.moving;
   Offset    position;
 
   final Stopwatch _sw = Stopwatch()..start();
   int get elapsedMs => _sw.elapsedMilliseconds;
 
-  static const double kDoneDuration = 0.5; // seconds to show before removal
+  static const double kDoneDuration = 0.5;
 
   Offset get currentNode => path[segIndex];
   Offset get nextNode    => path[segIndex + 1];
 
-  Pkt({required this.path}) : position = path.first;
+  Pkt({required this.path, this.deviceIds = const []}) : position = path.first;
 
   bool get isFinished =>
       status == PktStatus.success || status == PktStatus.blocked;
 }
 
+// ── Simulation link/device state (public — shared with editor screen) ─────────
+
+enum LinkState { active, failed, congested }
+
+enum DeviceState { active, crashed, rebooting }
+
+class SimLink {
+  final String linkId;
+  final String deviceAId;
+  final String deviceBId;
+  final Offset posA;
+  final Offset posB;
+  LinkState state;
+  double    latencyMs;
+
+  SimLink({
+    required this.linkId,
+    required this.deviceAId,
+    required this.deviceBId,
+    required this.posA,
+    required this.posB,
+    this.state     = LinkState.active,
+    this.latencyMs = 10.0,
+  });
+
+  bool get isPassable => state != LinkState.failed;
+}
+
+class SimDevice {
+  final String deviceId;
+  final String name;
+  final Offset position;
+  DeviceState state;
+  double      rebootTimer;
+
+  SimDevice({
+    required this.deviceId,
+    required this.name,
+    required this.position,
+    this.state       = DeviceState.active,
+    this.rebootTimer = 0.0,
+  });
+
+  bool get isActive => state == DeviceState.active;
+}
+
 // ── TopologyPainter ───────────────────────────────────────────────────────────
 
 class TopologyPainter extends CustomPainter {
-  final Topology  topology;
-  final String?   selectedDeviceId;
-  final List<Pkt> packets;
+  final Topology        topology;
+  final String?         selectedDeviceId;
+  final List<Pkt>       packets;
+  final List<SimLink>   simLinks;
+  final List<SimDevice> simDevices;
 
   static const double kR    = 28.0;
   static const double kGrid = 20.0;
@@ -46,7 +95,9 @@ class TopologyPainter extends CustomPainter {
   const TopologyPainter({
     required this.topology,
     this.selectedDeviceId,
-    this.packets = const [],
+    this.packets    = const [],
+    this.simLinks   = const [],
+    this.simDevices = const [],
   });
 
   @override
@@ -69,25 +120,82 @@ class TopologyPainter extends CustomPainter {
 
   // ── Links ─────────────────────────────────────────────────────────────────
   void _drawLinks(Canvas canvas) {
-    for (final link in topology.links) {
-      final a = _pos(link.deviceAId);
-      final b = _pos(link.deviceBId);
-      if (a == null || b == null) continue;
-      final paint = Paint()
-        ..color       = link.isActive ? Colors.grey[700]! : Colors.red.withValues(alpha: 0.85)
-        ..strokeWidth = link.isActive
-            ? (link.type == LinkType.standard ? 2.0 : 1.5)
-            : 2.5
-        ..style = PaintingStyle.stroke;
-      link.isActive && link.type == LinkType.standard
-          ? canvas.drawLine(a, b, paint)
-          : _dashed(canvas, a, b, paint);
+    if (simLinks.isNotEmpty) {
+      // Simulation mode: state-based rendering from simLinks
+      for (final sl in simLinks) {
+        switch (sl.state) {
+          case LinkState.active:
+            canvas.drawLine(sl.posA, sl.posB,
+                Paint()
+                  ..color       = Colors.grey[700]!
+                  ..strokeWidth = 2.0
+                  ..style       = PaintingStyle.stroke);
+
+          case LinkState.failed:
+            _dashed(canvas, sl.posA, sl.posB,
+                Paint()
+                  ..color       = const Color(0xFFF44336).withValues(alpha: 0.9)
+                  ..strokeWidth = 2.0
+                  ..style       = PaintingStyle.stroke);
+            _drawLinkLabel(canvas, sl.posA, sl.posB, 'DOWN', const Color(0xFFF44336));
+
+          case LinkState.congested:
+            canvas.drawLine(sl.posA, sl.posB,
+                Paint()
+                  ..color       = const Color(0xFFFF9800).withValues(alpha: 0.85)
+                  ..strokeWidth = 3.0
+                  ..style       = PaintingStyle.stroke);
+            _drawLinkLabel(canvas, sl.posA, sl.posB, 'CONGESTED', const Color(0xFFFF9800));
+        }
+      }
+    } else {
+      // Edit mode: draw from topology model
+      for (final link in topology.links) {
+        final a = _pos(link.deviceAId);
+        final b = _pos(link.deviceBId);
+        if (a == null || b == null) continue;
+        final paint = Paint()
+          ..color       = link.isActive ? Colors.grey[700]! : Colors.red.withValues(alpha: 0.85)
+          ..strokeWidth = link.isActive
+              ? (link.type == LinkType.standard ? 2.0 : 1.5)
+              : 2.5
+          ..style = PaintingStyle.stroke;
+        link.isActive && link.type == LinkType.standard
+            ? canvas.drawLine(a, b, paint)
+            : _dashed(canvas, a, b, paint);
+      }
     }
+  }
+
+  void _drawLinkLabel(Canvas canvas, Offset posA, Offset posB, String text, Color color) {
+    final mid = Offset((posA.dx + posB.dx) / 2, (posA.dy + posB.dy) / 2);
+    final tp  = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: mid, width: tp.width + 8, height: tp.height + 4),
+        const Radius.circular(3),
+      ),
+      Paint()..color = const Color(0xFF0D1B2A),
+    );
+    tp.paint(canvas, mid - Offset(tp.width / 2, tp.height / 2));
   }
 
   // ── Devices ───────────────────────────────────────────────────────────────
   void _drawDevices(Canvas canvas) {
-    for (final d in topology.devices) { _device(canvas, d); }
+    for (final d in topology.devices) {
+      _device(canvas, d);
+      if (simDevices.isEmpty) continue;
+      final sd = simDevices.where((s) => s.deviceId == d.id).firstOrNull;
+      if (sd != null && sd.state != DeviceState.active) {
+        _drawStateOverlay(canvas, Offset(d.x, d.y), sd);
+      }
+    }
   }
 
   void _device(Canvas canvas, Device d) {
@@ -107,6 +215,29 @@ class TopologyPainter extends CustomPainter {
     if (allDown) _crossMark(canvas, c, kR, Colors.red);
   }
 
+  void _drawStateOverlay(Canvas canvas, Offset center, SimDevice sd) {
+    final color = sd.state == DeviceState.crashed
+        ? const Color(0xFFF44336)
+        : const Color(0xFFFF9800);
+    canvas.drawCircle(center, kR + 2, Paint()..color = color.withValues(alpha: 0.18));
+    canvas.drawCircle(center, kR + 2,
+        Paint()
+          ..color       = color
+          ..strokeWidth = 2.5
+          ..style       = PaintingStyle.stroke);
+    final text = sd.state == DeviceState.crashed
+        ? '✕'
+        : '↺${sd.rebootTimer.ceil()}s';
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy + kR + 20));
+  }
+
   // ── Packets ───────────────────────────────────────────────────────────────
   void _drawPackets(Canvas canvas) {
     for (final pkt in packets) {
@@ -117,15 +248,11 @@ class TopologyPainter extends CustomPainter {
         PktStatus.blocked  => const Color(0xFFF44336),
       };
       final radius = pkt.status == PktStatus.dwelling ? 7.0 : 5.0;
-
-      // Glow
       canvas.drawCircle(pkt.position, radius * 2.5,
           Paint()
             ..color      = color.withValues(alpha: 0.3)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
-      // Body
       canvas.drawCircle(pkt.position, radius, Paint()..color = color);
-
       if (pkt.status == PktStatus.blocked) {
         _crossMark(canvas, pkt.position, radius, Colors.red);
       }
@@ -172,8 +299,11 @@ class TopologyPainter extends CustomPainter {
     final tp = TextPainter(
       text: TextSpan(
           text: String.fromCharCode(icon.codePoint),
-          style: TextStyle(fontSize: 20, fontFamily: icon.fontFamily,
-              package: icon.fontPackage, color: Colors.white)),
+          style: TextStyle(
+              fontSize: 20,
+              fontFamily: icon.fontFamily,
+              package: icon.fontPackage,
+              color: Colors.white)),
       textDirection: TextDirection.ltr,
     )..layout();
     tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
@@ -181,9 +311,13 @@ class TopologyPainter extends CustomPainter {
 
   void _label(Canvas canvas, Offset center, String name) {
     final tp = TextPainter(
-      text: TextSpan(text: name,
-          style: const TextStyle(color: Color(0xFF1A1A2E), fontSize: 13,
-              fontWeight: FontWeight.w600, height: 1.2)),
+      text: TextSpan(
+          text: name,
+          style: const TextStyle(
+              color: Color(0xFF1A1A2E),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              height: 1.2)),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
     )..layout(maxWidth: 100);
@@ -202,7 +336,8 @@ class TopologyPainter extends CustomPainter {
   }
 
   void _crossMark(Canvas canvas, Offset c, double r, Color color) {
-    final p = Paint()..color = color..strokeWidth = 2..style = PaintingStyle.stroke;
+    final p =
+        Paint()..color = color..strokeWidth = 2..style = PaintingStyle.stroke;
     canvas.drawLine(Offset(c.dx - r * 0.6, c.dy - r * 0.6),
         Offset(c.dx + r * 0.6, c.dy + r * 0.6), p);
     canvas.drawLine(Offset(c.dx + r * 0.6, c.dy - r * 0.6),
@@ -214,14 +349,16 @@ class TopologyPainter extends CustomPainter {
     final len = math.sqrt(dx * dx + dy * dy);
     if (len == 0) return;
     final ux = dx / len, uy = dy / len;
-    double t = 0; bool draw = true;
+    double t = 0;
+    bool draw = true;
     while (t < len) {
       final t2 = math.min(t + (draw ? 8.0 : 5.0), len);
       if (draw) {
         canvas.drawLine(Offset(a.dx + ux * t, a.dy + uy * t),
             Offset(a.dx + ux * t2, a.dy + uy * t2), p);
       }
-      t = t2; draw = !draw;
+      t = t2;
+      draw = !draw;
     }
   }
 
