@@ -936,37 +936,42 @@ class _LinkStateMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(mainAxisSize: MainAxisSize.min,
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-        const Text('リンク操作',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 4),
-        Text('現在の状態: ${simLink.state.name.toUpperCase()}',
-            style: TextStyle(color: _stateColor(simLink.state), fontSize: 12)),
-        const SizedBox(height: 16),
-        _SimMenuBtn(
-          icon: Icons.link,
-          label: 'リンク正常化（Link Up）',
-          color: Colors.green,
-          onTap: () { Navigator.pop(context); onStateChanged(LinkState.active); },
+            const Text('リンク操作',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('現在の状態: ${simLink.state.name.toUpperCase()}',
+                style: TextStyle(color: _stateColor(simLink.state), fontSize: 12)),
+            const SizedBox(height: 16),
+            _SimMenuBtn(
+              icon: Icons.link,
+              label: 'リンク正常化（Link Up）',
+              color: Colors.green,
+              onTap: () { Navigator.pop(context); onStateChanged(LinkState.active); },
+            ),
+            _SimMenuBtn(
+              icon: Icons.link_off,
+              label: 'リンク断（Link Down）',
+              color: Colors.red,
+              onTap: () { Navigator.pop(context); onStateChanged(LinkState.failed); },
+            ),
+            _SimMenuBtn(
+              icon: Icons.warning_amber,
+              label: '輻輳シミュレート（Congested）',
+              color: Colors.orange,
+              onTap: () { Navigator.pop(context); onStateChanged(LinkState.congested); },
+            ),
+          ],
         ),
-        _SimMenuBtn(
-          icon: Icons.link_off,
-          label: 'リンク断（Link Down）',
-          color: Colors.red,
-          onTap: () { Navigator.pop(context); onStateChanged(LinkState.failed); },
-        ),
-        _SimMenuBtn(
-          icon: Icons.warning_amber,
-          label: '輻輳シミュレート（Congested）',
-          color: Colors.orange,
-          onTap: () { Navigator.pop(context); onStateChanged(LinkState.congested); },
-        ),
-      ]),
+      ),
     );
   }
 
@@ -987,43 +992,48 @@ class _DeviceCrashMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(mainAxisSize: MainAxisSize.min,
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-        Text('デバイス操作: ${simDevice.name}',
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 4),
-        Text('状態: ${simDevice.state.name.toUpperCase()}',
-            style: TextStyle(color: _stateColor(simDevice.state), fontSize: 12)),
-        const SizedBox(height: 16),
-        _SimMenuBtn(
-          icon: Icons.check_circle_outline,
-          label: '正常化（Recover）',
-          color: Colors.green,
-          onTap: () { Navigator.pop(context); onAction('recover', 0); },
+            Text('デバイス操作: ${simDevice.name}',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('状態: ${simDevice.state.name.toUpperCase()}',
+                style: TextStyle(color: _stateColor(simDevice.state), fontSize: 12)),
+            const SizedBox(height: 16),
+            _SimMenuBtn(
+              icon: Icons.check_circle_outline,
+              label: '正常化（Recover）',
+              color: Colors.green,
+              onTap: () { Navigator.pop(context); onAction('recover', 0); },
+            ),
+            _SimMenuBtn(
+              icon: Icons.dangerous_outlined,
+              label: 'クラッシュ（Crash）',
+              color: Colors.red,
+              onTap: () { Navigator.pop(context); onAction('crash', 0); },
+            ),
+            _SimMenuBtn(
+              icon: Icons.restart_alt,
+              label: '再起動（Reboot 10秒）',
+              color: Colors.orange,
+              onTap: () { Navigator.pop(context); onAction('reboot', 10.0); },
+            ),
+            _SimMenuBtn(
+              icon: Icons.restart_alt,
+              label: '再起動（Reboot 30秒）',
+              color: Colors.orange,
+              onTap: () { Navigator.pop(context); onAction('reboot', 30.0); },
+            ),
+          ],
         ),
-        _SimMenuBtn(
-          icon: Icons.dangerous_outlined,
-          label: 'クラッシュ（Crash）',
-          color: Colors.red,
-          onTap: () { Navigator.pop(context); onAction('crash', 0); },
-        ),
-        _SimMenuBtn(
-          icon: Icons.restart_alt,
-          label: '再起動（Reboot 10秒）',
-          color: Colors.orange,
-          onTap: () { Navigator.pop(context); onAction('reboot', 10.0); },
-        ),
-        _SimMenuBtn(
-          icon: Icons.restart_alt,
-          label: '再起動（Reboot 30秒）',
-          color: Colors.orange,
-          onTap: () { Navigator.pop(context); onAction('reboot', 30.0); },
-        ),
-      ]),
+      ),
     );
   }
 
