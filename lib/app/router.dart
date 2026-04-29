@@ -7,6 +7,9 @@ import '../ui/screens/device_config_screen.dart';
 import '../ui/screens/statistics_screen.dart';
 import '../ui/screens/pentest_screen.dart';
 import '../ui/screens/syslog_screen.dart';
+import '../ui/screens/scenario_screen.dart';
+import '../ui/screens/scenario_play_screen.dart';
+import '../ui/screens/protocol_viz_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -41,6 +44,19 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/syslog',
       builder: (context, state) => const SyslogScreen(),
+    ),
+    GoRoute(
+      path: '/scenarios',
+      builder: (_, __) => const ScenarioScreen(),
+    ),
+    GoRoute(
+      path: '/scenario/:id',
+      builder: (_, s) =>
+          ScenarioPlayScreen(id: s.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/protocol-viz',
+      builder: (_, __) => const ProtocolVizScreen(),
     ),
   ],
 );

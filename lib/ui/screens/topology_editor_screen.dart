@@ -813,6 +813,8 @@ class _TopologyEditorScreenState extends ConsumerState<TopologyEditorScreen>
           IconButton(icon: const Icon(Icons.bar_chart),            tooltip: '統計',           onPressed: () => context.push('/stats')),
           IconButton(icon: const Icon(Icons.security),             tooltip: 'セキュリティテスト', onPressed: () => context.push('/pentest')),
           IconButton(icon: const Icon(Icons.settings),             tooltip: '設定',           onPressed: () => SettingsSheet.show(context)),
+          IconButton(icon: const Icon(Icons.school_outlined),     tooltip: 'シナリオ学習',    onPressed: () => context.push('/scenarios')),
+          IconButton(icon: const Icon(Icons.hub_outlined),        tooltip: 'プロトコル可視化', onPressed: () => context.push('/protocol-viz')),
         ],
       ),
       body: Stack(
