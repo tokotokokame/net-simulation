@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>トポロジデータの保存に使用します</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>ネットワークシミュレーションに使用します</string>
 </dict>
 </plist>
