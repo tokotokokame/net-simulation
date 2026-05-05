@@ -1,0 +1,75 @@
+name: Android Build & Release
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.6'
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          VERSION=${GITHUB_REF_NAME:-dev}
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             net-simulation-android-${VERSION}.apk
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: "Net.Simulation ${{ github.ref_name }}"
+          body: |
+            ## Net.Simulation ${{ github.ref_name }}
+
+            ### ダウンロード
+            | プラットフォーム | ファイル | 備考 |
+            |----------------|---------|------|
+            | 🤖 Android | `net-simulation-android-${{ github.ref_name }}.apk` | Android 8.0以上 |
+            | 🍎 iOS | `net-simulation-ios-${{ github.ref_name }}.ipa` | 署名なし版（TestFlight配布用） |
+
+            ### Android インストール手順
+            1. `net-simulation-android-*.apk` をダウンロード
+            2. 設定 → セキュリティ → 提供元不明のアプリ を許可
+            3. APKをタップしてインストール
+
+            ### iOS インストール手順
+            1. `net-simulation-ios-*.ipa` をダウンロード
+            2. Apple Developer アカウントが必要（TestFlight経由）
+            3. または Xcode で直接実機にインストール
+          files: |
+            net-simulation-android-${{ github.ref_name }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,10 +1,10 @@
-name: iOS Build
+name: iOS Build & Release
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -22,6 +22,7 @@ jobs:
         with:
           flutter-version: '3.41.6'
           channel: 'stable'
+          cache: true
 
       - name: Get dependencies
         run: flutter pub get
@@ -32,25 +33,29 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Install CocoaPods
+      - name: Install CocoaPods dependencies
         run: |
           cd ios
           pod install --repo-update
 
-      - name: Build iOS (no signing)
-        run: flutter build ios --release --no-codesign
-
-      - name: Archive IPA
+      - name: Build iOS (no codesign)
         run: |
+          flutter build ios --release --no-codesign
+
+      - name: Create IPA
+        run: |
+          VERSION=${GITHUB_REF_NAME:-dev}
           cd build/ios/iphoneos
           mkdir -p Payload
           cp -r Runner.app Payload/
-          zip -r ../../../net-simulation-ios.ipa Payload/
+          zip -r "../../../net-simulation-ios-${VERSION}.ipa" Payload/
+          echo "IPA created: net-simulation-ios-${VERSION}.ipa"
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: Add IPA to Release
+        uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: net-simulation-ios.ipa
+          files: |
+            net-simulation-ios-${{ github.ref_name }}.ipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
