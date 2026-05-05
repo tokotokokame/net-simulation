@@ -98,7 +98,7 @@ class _ScenarioCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: scenario.color.withOpacity(0.15),
+                color: scenario.color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(scenario.icon, color: scenario.color, size: 22),
@@ -130,7 +130,7 @@ class _ScenarioCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _diffColor(scenario.difficulty).withOpacity(0.2),
+                    color: _diffColor(scenario.difficulty).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(scenario.difficulty,

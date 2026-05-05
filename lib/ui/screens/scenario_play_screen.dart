@@ -100,7 +100,7 @@ class _ScenarioPlayScreenState extends State<ScenarioPlayScreen> {
                         color: const Color(0xFF1A2D3D),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                            color: scenario.color.withOpacity(0.4)),
+                            color: scenario.color.withValues(alpha: 0.4)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

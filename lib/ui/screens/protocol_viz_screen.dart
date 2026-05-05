@@ -47,7 +47,7 @@ class _ProtocolVizScreenState extends State<ProtocolVizScreen>
                           horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: selected
-                            ? p.$3.withOpacity(0.2)
+                            ? p.$3.withValues(alpha: 0.2)
                             : const Color(0xFF1A2D3D),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
@@ -242,7 +242,7 @@ class _TcpPainter extends CustomPainter {
             topY + size.height * 0.6,
             serverX + 30,
             topY + size.height * 0.7),
-        Paint()..color = const Color(0xFF4CAF50).withOpacity(0.3),
+        Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.3),
       );
       _drawText(canvas, 'DATA TRANSFER ↔',
           Offset(size.width / 2, topY + size.height * 0.65),
@@ -253,7 +253,7 @@ class _TcpPainter extends CustomPainter {
   void _drawNode(
       Canvas canvas, Offset center, String label, Color color) {
     canvas.drawCircle(
-        center, 28, Paint()..color = color.withOpacity(0.15));
+        center, 28, Paint()..color = color.withValues(alpha: 0.15));
     canvas.drawCircle(
         center,
         28,
@@ -339,9 +339,9 @@ class _ProtocolPlaceholderState extends State<_ProtocolPlaceholder> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: active
-                      ? widget.color.withOpacity(0.15)
+                      ? widget.color.withValues(alpha: 0.15)
                       : done
-                          ? Colors.white.withOpacity(0.03)
+                          ? Colors.white.withValues(alpha: 0.03)
                           : const Color(0xFF1A2D3D),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
@@ -357,7 +357,7 @@ class _ProtocolPlaceholderState extends State<_ProtocolPlaceholder> {
                         color: done
                             ? widget.color
                             : active
-                                ? widget.color.withOpacity(0.3)
+                                ? widget.color.withValues(alpha: 0.3)
                                 : Colors.white12,
                         shape: BoxShape.circle,
                       ),

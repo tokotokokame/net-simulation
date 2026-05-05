@@ -118,8 +118,8 @@ class _HopPath extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: isLast
-                    ? const Color(0xFF4CAF50).withOpacity(0.2)
-                    : const Color(0xFF2196F3).withOpacity(0.15),
+                    ? const Color(0xFF4CAF50).withValues(alpha: 0.2)
+                    : const Color(0xFF2196F3).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
                     color: isLast
@@ -177,8 +177,8 @@ class _OsiHighlight extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: isHighlight
-                ? const Color(0xFFFFC107).withOpacity(0.15)
-                : Colors.white.withOpacity(0.03),
+                ? const Color(0xFFFFC107).withValues(alpha: 0.15)
+                : Colors.white.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
                 color: isHighlight
