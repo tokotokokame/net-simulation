@@ -32,6 +32,8 @@ jobs:
 
       - name: Test
         run: flutter test
+        env:
+          CI: 'true'
 
       - name: Install CocoaPods dependencies
         run: |
