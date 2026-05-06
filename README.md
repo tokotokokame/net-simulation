@@ -198,6 +198,11 @@ flutter build ios --release --no-codesign
 
 ---
 
+## Zenn
+スマホでCCNA学習：OSPF・TCP・CLIが動くネットワークシミュレーターを作った【Net.Simulation】(https://zenn.dev/tokotokokame/articles/25f93087944ce3)
+
+---
+
 ## 今後の予定
 
 - シナリオクイズ・採点機能
